@@ -34,6 +34,30 @@
       <div class="space-y-4">
         <h2 class="text-base font-bold text-slate-200 border-b border-slate-800 pb-2">⚙️ إعدادات الفحص والماسح الذكي</h2>
 
+        <!-- مربع النسخ السريع لاسم الزوج فوق القائمة -->
+        <div class="bg-slate-950/90 border border-amber-500/40 rounded-xl p-2.5 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-slate-400">الزوج النشط:</span>
+            <input
+              id="copyPairInput"
+              type="text"
+              readonly
+              value="EUR/USD"
+              onclick="copyActivePair()"
+              title="اضغط للنسخ السريع"
+              class="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-sm font-mono font-extrabold text-amber-300 text-center cursor-pointer focus:outline-none select-all"
+            />
+          </div>
+          <button
+            id="copyPairBtn"
+            type="button"
+            onclick="copyActivePair()"
+            class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition shrink-0"
+          >
+            📋 نسخ
+          </button>
+        </div>
+
         <div>
           <label class="block text-xs text-slate-400 mb-1">اختر زوج العملات (22 زوجاً)</label>
           <select id="pairSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400"></select>
@@ -130,6 +154,35 @@
     let currentCandle = null;
     let ws = null;
     let subscribedSymbol = null;
+
+    function copyTextToClipboard(text, btnElement) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+      }
+      if (btnElement) {
+        const origText = btnElement.textContent;
+        const origClass = btnElement.className;
+        btnElement.textContent = "✅ تم النسخ!";
+        btnElement.className = "px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-extrabold text-xs transition shrink-0";
+        setTimeout(() => {
+          btnElement.textContent = origText;
+          btnElement.className = origClass;
+        }, 1200);
+      }
+    }
+
+    function copyActivePair() {
+      const val = document.getElementById("copyPairInput").value;
+      const btn = document.getElementById("copyPairBtn");
+      copyTextToClipboard(val, btn);
+    }
 
     const container = document.getElementById("chartContainer");
     const chart = LightweightCharts.createChart(container, {
@@ -248,6 +301,7 @@
         opt.textContent = p;
         select.appendChild(opt);
       });
+      document.getElementById("copyPairInput").value = select.value || "EUR/USD";
     }
 
     function clearSRLines() {
@@ -295,6 +349,8 @@
 
     async function fetchAndRender() {
       const symbol = document.getElementById("pairSelect").value || "EUR/USD";
+      document.getElementById("copyPairInput").value = symbol;
+
       const digits = symbol.includes("JPY") ? 3 : 5;
       updatePrecisionForPair(symbol);
 
@@ -347,6 +403,7 @@
     function openPairFromScanner(symbol) {
       const select = document.getElementById("pairSelect");
       select.value = symbol;
+      document.getElementById("copyPairInput").value = symbol;
       fetchAndRender();
     }
 
@@ -386,7 +443,10 @@
             }`;
             row.onclick = () => openPairFromScanner(item.symbol);
             row.innerHTML = `
-              <span class="font-bold text-white">${item.symbol}</span>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">${item.symbol}</span>
+                <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-amber-300 border border-slate-600">نسخ</button>
+              </div>
               <span class="font-black ${isCall ? "text-emerald-400" : "text-rose-400"}">
                 ${isCall ? "🟢 CALL (صعود)" : "🔴 PUT (هبوط)"}
               </span>
@@ -405,7 +465,10 @@
               row.className = "flex items-center justify-between bg-slate-900 hover:bg-slate-800 px-2.5 py-1.5 rounded border border-slate-800 cursor-pointer";
               row.onclick = () => openPairFromScanner(item.symbol);
               row.innerHTML = `
-                <span class="font-semibold text-slate-200">${item.symbol}</span>
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-slate-200">${item.symbol}</span>
+                  <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-amber-300 border border-slate-700">نسخ</button>
+                </div>
                 <span class="text-amber-300 font-mono">متبقي ${item.distance_pips} نقطة (${item.bias})</span>
               `;
               list.appendChild(row);
