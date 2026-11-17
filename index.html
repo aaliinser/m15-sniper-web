@@ -20,9 +20,11 @@
       <h1 class="text-lg font-bold tracking-wide text-amber-400">M15 SNIPER PRO <span class="text-xs text-slate-400 font-normal">| بث سوق حي + ماسح 22 زوجاً</span></h1>
     </div>
     <div class="flex items-center gap-3 text-xs sm:text-sm">
+      <button id="soundToggleBtn" type="button" onclick="toggleSound()" class="px-3 py-1 rounded-md font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
+        🔊 التنبيه الصوتي: مفعّل
+      </button>
       <span id="wsStatus" class="px-2.5 py-1 rounded bg-slate-800 text-amber-300">جاري ربط البث الحي...</span>
       <span id="gazaClock" class="bg-slate-800/80 px-3 py-1 rounded-md text-slate-300">توقيت غزة: --:--:--</span>
-      <span id="sessionBadge" class="px-3 py-1 rounded-md font-semibold bg-emerald-500/20 text-emerald-300">جلسة نشطة</span>
     </div>
   </header>
 
@@ -92,14 +94,14 @@
         </div>
 
         <!-- عداد إغلاق الشمعة -->
-        <div class="flex items-center justify-between bg-slate-900/90 px-3 py-2.5 rounded-lg border border-slate-800">
+        <div id="countdownBox" class="flex items-center justify-between bg-slate-900/90 px-3 py-2.5 rounded-lg border border-slate-800 transition">
           <span class="text-xs text-slate-400">⏳ المتبقي لإغلاق الشمعة الحالية:</span>
           <span id="candleCountdown" class="font-mono text-sm font-extrabold text-amber-400">--:--</span>
         </div>
       </div>
 
       <!-- بطاقة نتيجة الإشارة -->
-      <div id="signalBox" class="rounded-xl p-4 border border-slate-700 bg-slate-900/90 space-y-2">
+      <div id="signalBox" class="rounded-xl p-4 border border-slate-700 bg-slate-900/90 space-y-2 transition">
         <div class="flex items-center justify-between">
           <span class="text-xs text-slate-400">السعر اللحظي المباشر</span>
           <span id="livePriceBadge" class="text-base font-mono font-black text-emerald-400">--.-----</span>
@@ -149,11 +151,80 @@
     const FINNHUB_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0";
     let currentTf = "15m";
     let showSR = true, showBB = true, showEMA = true;
+    let soundEnabled = true;
+    let audioCtx = null;
     let srPriceLines = [];
     let lastData = null;
     let currentCandle = null;
     let ws = null;
     let subscribedSymbol = null;
+
+    // تهيئة محرك الصوت المدمج في المتصفح
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }
+
+    document.addEventListener("click", ensureAudioContext, { once: true });
+
+    function playTone(freq, durationSec, type = "sine", delaySec = 0) {
+      if (!soundEnabled) return;
+      ensureAudioContext();
+      if (!audioCtx) return;
+
+      try {
+        const startTime = audioCtx.currentTime + delaySec;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.15, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + durationSec);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + durationSec);
+      } catch (e) {}
+    }
+
+    function playCountdownTick(isFinalClose) {
+      if (isFinalClose) {
+        playTone(880, 0.25, "triangle", 0);
+      } else {
+        playTone(580, 0.08, "sine", 0);
+      }
+    }
+
+    function playSignalAlert(direction) {
+      if (direction === "CALL") {
+        playTone(660, 0.15, "triangle", 0);
+        playTone(880, 0.25, "triangle", 0.16);
+      } else if (direction === "PUT") {
+        playTone(660, 0.15, "triangle", 0);
+        playTone(440, 0.25, "triangle", 0.16);
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const btn = document.getElementById("soundToggleBtn");
+      if (soundEnabled) {
+        ensureAudioContext();
+        playTone(740, 0.12, "sine", 0);
+        btn.textContent = "🔊 التنبيه الصوتي: مفعّل";
+        btn.className = "px-3 py-1 rounded-md font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition";
+      } else {
+        btn.textContent = "🔇 التنبيه الصوتي: مكتوم";
+        btn.className = "px-3 py-1 rounded-md font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition";
+      }
+    }
 
     function copyTextToClipboard(text, btnElement) {
       if (navigator.clipboard && window.isSecureContext) {
@@ -381,15 +452,22 @@
 
         document.getElementById("livePriceBadge").textContent = Number(data.live_price).toFixed(digits);
         const dirEl = document.getElementById("signalDirection");
+        const sigBox = document.getElementById("signalBox");
+
         if (data.signal === "CALL") {
           dirEl.textContent = "🟢 CALL (صعود) — ادخل الآن";
-          dirEl.className = "text-xl font-black text-center py-2.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+          dirEl.className = "text-xl font-black text-center py-2.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
+          sigBox.className = "rounded-xl p-4 border-2 border-emerald-500 bg-emerald-950/30 space-y-2 transition";
+          playSignalAlert("CALL");
         } else if (data.signal === "PUT") {
           dirEl.textContent = "🔴 PUT (هبوط) — ادخل الآن";
-          dirEl.className = "text-xl font-black text-center py-2.5 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/40";
+          dirEl.className = "text-xl font-black text-center py-2.5 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse";
+          sigBox.className = "rounded-xl p-4 border-2 border-rose-500 bg-rose-950/30 space-y-2 transition";
+          playSignalAlert("PUT");
         } else {
           dirEl.textContent = "⏳ مراقبة السوق (لا توجد إشارة)";
           dirEl.className = "text-base font-bold text-center py-2.5 rounded-lg bg-slate-800 text-slate-300";
+          sigBox.className = "rounded-xl p-4 border border-slate-700 bg-slate-900/90 space-y-2 transition";
         }
         document.getElementById("signalReason").textContent = data.reason;
 
@@ -435,6 +513,7 @@
         list.innerHTML = "";
 
         if (data.active_signals && data.active_signals.length > 0) {
+          playSignalAlert(data.active_signals[0].signal);
           data.active_signals.forEach(item => {
             const isCall = item.signal === "CALL";
             const row = document.createElement("div");
@@ -482,13 +561,26 @@
       }
     }
 
+    // العداد التنازلي + التنبيه الصوتي في آخر 5 ثوانٍ قبل إغلاق الشمعة
     setInterval(() => {
       const tfSec = getTfSeconds(currentTf);
       const nowSec = Math.floor(Date.now() / 1000);
       const rem = tfSec - (nowSec % tfSec);
       const mins = String(Math.floor(rem / 60)).padStart(2, "0");
       const secs = String(rem % 60).padStart(2, "0");
-      document.getElementById("candleCountdown").textContent = `${mins}:${secs}`;
+
+      const cdEl = document.getElementById("candleCountdown");
+      const cdBox = document.getElementById("countdownBox");
+      cdEl.textContent = `${mins}:${secs}`;
+
+      if (rem <= 5) {
+        cdEl.className = "font-mono text-base font-black text-rose-400 animate-pulse";
+        cdBox.className = "flex items-center justify-between bg-rose-950/40 px-3 py-2.5 rounded-lg border border-rose-500/60 transition";
+        playCountdownTick(rem === 1);
+      } else {
+        cdEl.className = "font-mono text-sm font-extrabold text-amber-400";
+        cdBox.className = "flex items-center justify-between bg-slate-900/90 px-3 py-2.5 rounded-lg border border-slate-800 transition";
+      }
     }, 1000);
 
     document.querySelectorAll(".tf-btn").forEach(btn => {
