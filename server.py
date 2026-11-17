@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -155,6 +156,42 @@ def check_signal_conditions(df: pd.DataFrame, digits: int):
     return "WAIT", curr_close, "لا توجد إشارة دخول مطابقة لشروط الاستراتيجية حالياً"
 
 
+def evaluate_proximity(df: pd.DataFrame, pip_mult: float, digits: int):
+    """حساب مدى قرب السعر الحالي من تحقيق شرط الاستراتيجية (لأغراض المراقبة في الماسح)"""
+    if len(df) < 3:
+        return None
+
+    live_bar = df.iloc[-1]
+    if (
+        pd.isna(live_bar["close"])
+        or pd.isna(live_bar["bb_upper"])
+        or pd.isna(live_bar["bb_lower"])
+        or pd.isna(live_bar["ema_200"])
+    ):
+        return None
+
+    price = float(live_bar["close"])
+    bb_upper = float(live_bar["bb_upper"])
+    bb_lower = float(live_bar["bb_lower"])
+    ema_200 = float(live_bar["ema_200"])
+
+    if price > ema_200:
+        dist_pips = round((price - bb_lower) * pip_mult, 1)
+        return {
+            "bias": "CALL",
+            "distance_pips": dist_pips,
+            "price": round(price, digits)
+        }
+    elif price < ema_200:
+        dist_pips = round((bb_upper - price) * pip_mult, 1)
+        return {
+            "bias": "PUT",
+            "distance_pips": dist_pips,
+            "price": round(price, digits)
+        }
+    return None
+
+
 def fetch_twelve_data(symbol: str, tf: str):
     if not TWELVE_DATA_KEY:
         return None, "مفتاح TWELVE_DATA_KEY غير مضاف في إعدادات الاستضافة."
@@ -257,4 +294,63 @@ async def analyze_pair(
             "bb_lower": bb_lower_line,
             "ema_200": ema200_line
         }
+    }
+
+
+@app.get("/api/scan")
+async def scan_market(tf: str = Query("15m")):
+    """فحص جميع الأزواج الـ 22 بنظام الدفعات المتتابعة الآمنة لحماية رصيد Twelve Data"""
+    if not TWELVE_DATA_KEY:
+        return JSONResponse(status_code=400, content={"error": "مفتاح TWELVE_DATA_KEY غير مضاف."})
+
+    active_signals = []
+    near_setups = []
+    scanned_count = 0
+
+    # تقسيم الـ 22 زوجاً إلى دفعات من 7 أزواج مع فاصل زمني آمن لتفادي حد الـ 8 طلبات/دقيقة
+    batch_size = 7
+    for i in range(0, len(TRADING_PAIRS), batch_size):
+        batch = TRADING_PAIRS[i:i + batch_size]
+        tasks = [asyncio.to_thread(fetch_twelve_data, sym, tf) for sym in batch]
+        results = await asyncio.gather(*tasks)
+
+        for sym, (df, err) in zip(batch, results):
+            if err or df is None or len(df) < 205:
+                continue
+
+            scanned_count += 1
+            pip_mult = 100.0 if "JPY" in sym else 10000.0
+            digits = 3 if "JPY" in sym else 5
+
+            sig, entry_price, reason = check_signal_conditions(df, digits)
+            if sig in ("CALL", "PUT"):
+                active_signals.append({
+                    "symbol": sym,
+                    "signal": sig,
+                    "price": round(entry_price, digits),
+                    "reason": reason
+                })
+            else:
+                prox = evaluate_proximity(df, pip_mult, digits)
+                if prox is not None:
+                    near_setups.append({
+                        "symbol": sym,
+                        "bias": prox["bias"],
+                        "distance_pips": prox["distance_pips"],
+                        "price": prox["price"]
+                    })
+
+        # انتظار 8 ثوانٍ بين الدفعات فقط إذا تبقى أزواج أخرى
+        if i + batch_size < len(TRADING_PAIRS):
+            await asyncio.sleep(8)
+
+    near_setups.sort(key=lambda x: x["distance_pips"])
+    gaza_now = datetime.now(timezone.utc).astimezone(GAZA_TZ)
+
+    return {
+        "timeframe": tf,
+        "scanned_count": scanned_count,
+        "scan_time": gaza_now.strftime("%H:%M:%S"),
+        "active_signals": active_signals,
+        "near_setups": near_setups[:3]
     }
