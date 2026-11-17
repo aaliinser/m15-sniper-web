@@ -117,25 +117,41 @@
     let ws = null;
     let subscribedSymbol = null;
 
-    // إعداد الشارت
+    // إعداد الشارت بدقة 5 أرقام عشرية افتراضياً
     const container = document.getElementById("chartContainer");
     const chart = LightweightCharts.createChart(container, {
       layout: { background: { color: "#0d1320" }, textColor: "#94a3b8" },
       grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       timeScale: { timeVisible: true, secondsVisible: false, borderColor: "#334155" },
-      rightPriceScale: { borderColor: "#334155" }
+      rightPriceScale: { borderColor: "#334155", autoScale: true }
     });
+
+    const defaultPriceFormat = { type: "price", precision: 5, minMove: 0.00001 };
 
     const candleSeries = chart.addCandlestickSeries({
       upColor: "#10b981", downColor: "#ef4444",
       borderUpColor: "#10b981", borderDownColor: "#ef4444",
-      wickUpColor: "#10b981", wickDownColor: "#ef4444"
+      wickUpColor: "#10b981", wickDownColor: "#ef4444",
+      priceFormat: defaultPriceFormat
     });
 
-    const bbUpperSeries = chart.addLineSeries({ color: "#a855f7", lineWidth: 1, title: "BB Upper" });
-    const bbLowerSeries = chart.addLineSeries({ color: "#a855f7", lineWidth: 1, title: "BB Lower" });
-    const ema200Series = chart.addLineSeries({ color: "#f59e0b", lineWidth: 2, title: "EMA 200" });
+    const bbUpperSeries = chart.addLineSeries({ color: "#a855f7", lineWidth: 1, title: "BB Upper", priceFormat: defaultPriceFormat });
+    const bbLowerSeries = chart.addLineSeries({ color: "#a855f7", lineWidth: 1, title: "BB Lower", priceFormat: defaultPriceFormat });
+    const ema200Series = chart.addLineSeries({ color: "#f59e0b", lineWidth: 2, title: "EMA 200", priceFormat: defaultPriceFormat });
+
+    function updatePrecisionForPair(symbol) {
+      const isJpy = symbol.includes("JPY");
+      const fmt = {
+        type: "price",
+        precision: isJpy ? 3 : 5,
+        minMove: isJpy ? 0.001 : 0.00001
+      };
+      candleSeries.applyOptions({ priceFormat: fmt });
+      bbUpperSeries.applyOptions({ priceFormat: fmt });
+      bbLowerSeries.applyOptions({ priceFormat: fmt });
+      ema200Series.applyOptions({ priceFormat: fmt });
+    }
 
     window.addEventListener("resize", () => {
       chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
@@ -177,14 +193,14 @@
         if (msg.type === "trade" && msg.data && msg.data.length > 0 && currentCandle) {
           const tick = msg.data[msg.data.length - 1];
           const price = tick.p;
-          const digits = pair.includes("JPY") ? 3 : 5;
+          const activePair = document.getElementById("pairSelect").value || "EUR/USD";
+          const digits = activePair.includes("JPY") ? 3 : 5;
           const roundedPrice = Number(price.toFixed(digits));
 
           const tfSec = getTfSeconds(currentTf);
           const tickCandleTime = Math.floor((tick.t / 1000) / tfSec) * tfSec;
 
           if (tickCandleTime > currentCandle.time) {
-            // بدء شمعة جديدة لحظياً عند انتهاء وقت السابقة
             currentCandle = {
               time: tickCandleTime,
               open: roundedPrice,
@@ -193,16 +209,13 @@
               close: roundedPrice
             };
           } else {
-            // تحديث ذيل وإغلاق الشمعة الحالية في نفس اللحظة
             currentCandle.close = roundedPrice;
             if (roundedPrice > currentCandle.high) currentCandle.high = roundedPrice;
             if (roundedPrice < currentCandle.low) currentCandle.low = roundedPrice;
           }
 
           candleSeries.update(currentCandle);
-
-          const badge = document.getElementById("livePriceBadge");
-          badge.textContent = roundedPrice.toFixed(digits);
+          document.getElementById("livePriceBadge").textContent = roundedPrice.toFixed(digits);
         }
       };
 
@@ -229,7 +242,7 @@
       srPriceLines = [];
     }
 
-    function renderSRLines(levels) {
+    function renderSRLines(levels, digits) {
       clearSRLines();
       const listEl = document.getElementById("srList");
       listEl.innerHTML = "";
@@ -243,6 +256,7 @@
         const isRes = lvl.type === "RESISTANCE";
         const color = isRes ? "#f97316" : "#38bdf8";
         const label = isRes ? `R=${lvl.touches} (مقاومة)` : `S=${lvl.touches} (دعم)`;
+        const formattedPrice = Number(lvl.price).toFixed(digits);
 
         if (showSR) {
           const line = candleSeries.createPriceLine({
@@ -260,7 +274,7 @@
         badge.className = "flex items-center justify-between bg-slate-900 px-3 py-1.5 rounded border border-slate-800";
         badge.innerHTML = `
           <span class="${isRes ? 'text-orange-400' : 'text-sky-400'} font-bold">${label}</span>
-          <span class="font-mono text-slate-200">${lvl.price}</span>
+          <span class="font-mono text-slate-200">${formattedPrice}</span>
         `;
         listEl.appendChild(badge);
       });
@@ -268,6 +282,9 @@
 
     async function fetchAndRender() {
       const symbol = document.getElementById("pairSelect").value || "EUR/USD";
+      const digits = symbol.includes("JPY") ? 3 : 5;
+      updatePrecisionForPair(symbol);
+
       document.getElementById("chartTitle").textContent = `${symbol} — ${currentTf.toUpperCase()}`;
       document.getElementById("loadingSpinner").classList.remove("hidden");
 
@@ -300,9 +317,9 @@
         bbUpperSeries.setData(showBB ? data.indicators.bb_upper : []);
         bbLowerSeries.setData(showBB ? data.indicators.bb_lower : []);
         ema200Series.setData(showEMA ? data.indicators.ema_200 : []);
-        renderSRLines(data.sr_levels);
+        renderSRLines(data.sr_levels, digits);
 
-        document.getElementById("livePriceBadge").textContent = data.live_price;
+        document.getElementById("livePriceBadge").textContent = Number(data.live_price).toFixed(digits);
         const dirEl = document.getElementById("signalDirection");
         if (data.signal === "CALL") {
           dirEl.textContent = "🟢 CALL (صعود) — ادخل الآن";
@@ -316,7 +333,6 @@
         }
         document.getElementById("signalReason").textContent = data.reason;
 
-        // تفعيل البث اللحظي المباشر لهذا الزوج
         connectWebSocket(symbol);
       } catch (e) {
         document.getElementById("loadingSpinner").classList.add("hidden");
@@ -349,7 +365,9 @@
     // أزرار إظهار وإخفاء المؤشرات
     document.getElementById("toggleSR").addEventListener("click", () => {
       showSR = !showSR;
-      if (lastData) renderSRLines(lastData.sr_levels);
+      const symbol = document.getElementById("pairSelect").value || "EUR/USD";
+      const digits = symbol.includes("JPY") ? 3 : 5;
+      if (lastData) renderSRLines(lastData.sr_levels, digits);
     });
     document.getElementById("toggleBB").addEventListener("click", () => {
       showBB = !showBB;
