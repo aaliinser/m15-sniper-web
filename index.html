@@ -17,7 +17,7 @@
   <header class="border-b border-slate-800 bg-[#0f1523] px-6 py-3 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-3">
       <div id="wsDot" class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></div>
-      <h1 class="text-lg font-bold tracking-wide text-amber-400">M15 SNIPER PRO <span class="text-xs text-slate-400 font-normal">| بث سوق حي (Tick-by-Tick)</span></h1>
+      <h1 class="text-lg font-bold tracking-wide text-amber-400">M15 SNIPER PRO <span class="text-xs text-slate-400 font-normal">| بث سوق حي + ماسح 22 زوجاً</span></h1>
     </div>
     <div class="flex items-center gap-3 text-xs sm:text-sm">
       <span id="wsStatus" class="px-2.5 py-1 rounded bg-slate-800 text-amber-300">جاري ربط البث الحي...</span>
@@ -32,7 +32,7 @@
     <!-- لوحة التحكم وتوليد الإشارات (يمين) -->
     <section class="lg:col-span-4 card rounded-xl p-5 flex flex-col justify-between gap-4">
       <div class="space-y-4">
-        <h2 class="text-base font-bold text-slate-200 border-b border-slate-800 pb-2">⚙️ إعدادات الفحص والإشارة</h2>
+        <h2 class="text-base font-bold text-slate-200 border-b border-slate-800 pb-2">⚙️ إعدادات الفحص والماسح الذكي</h2>
 
         <div>
           <label class="block text-xs text-slate-400 mb-1">اختر زوج العملات (22 زوجاً)</label>
@@ -49,9 +49,23 @@
           </div>
         </div>
 
-        <button id="analyzeBtn" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition">
-          🎯 تحليل وتحديث المؤشرات الآن
-        </button>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button id="analyzeBtn" class="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold py-2.5 px-3 rounded-xl text-xs transition">
+            🎯 فحص الزوج الحالي
+          </button>
+          <button id="scanAllBtn" class="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-extrabold py-2.5 px-3 rounded-xl text-xs shadow-lg transition">
+            🔍 مسح الـ 22 زوجاً الآن
+          </button>
+        </div>
+
+        <!-- صندوق نتائج ماسح السوق -->
+        <div id="scannerBox" class="hidden rounded-xl p-3.5 border border-amber-500/30 bg-slate-950/80 space-y-2.5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span class="text-xs font-bold text-amber-400">📡 نتائج ماسح السوق (22 زوجاً)</span>
+            <span id="scanMeta" class="text-[11px] text-slate-400">--:--</span>
+          </div>
+          <div id="scanResultsList" class="space-y-1.5 text-xs"></div>
+        </div>
 
         <!-- عداد إغلاق الشمعة -->
         <div class="flex items-center justify-between bg-slate-900/90 px-3 py-2.5 rounded-lg border border-slate-800">
@@ -117,7 +131,6 @@
     let ws = null;
     let subscribedSymbol = null;
 
-    // إعداد الشارت بدقة 5 أرقام عشرية افتراضياً
     const container = document.getElementById("chartContainer");
     const chart = LightweightCharts.createChart(container, {
       layout: { background: { color: "#0d1320" }, textColor: "#94a3b8" },
@@ -304,15 +317,6 @@
         }
 
         document.getElementById("gazaClock").textContent = `توقيت غزة: ${data.gaza_time}`;
-        const sessionBadge = document.getElementById("sessionBadge");
-        if (data.night_ban_active) {
-          sessionBadge.textContent = "نافذة حظر ليلي / عطلة";
-          sessionBadge.className = "px-3 py-1 rounded-md font-semibold bg-rose-500/20 text-rose-300";
-        } else {
-          sessionBadge.textContent = "جلسة تداول نشطة";
-          sessionBadge.className = "px-3 py-1 rounded-md font-semibold bg-emerald-500/20 text-emerald-300";
-        }
-
         candleSeries.setData(data.candles);
         bbUpperSeries.setData(showBB ? data.indicators.bb_upper : []);
         bbLowerSeries.setData(showBB ? data.indicators.bb_lower : []);
@@ -340,7 +344,81 @@
       }
     }
 
-    // تحديث العداد التنازلي للشمعة كل ثانية
+    function openPairFromScanner(symbol) {
+      const select = document.getElementById("pairSelect");
+      select.value = symbol;
+      fetchAndRender();
+    }
+
+    async function runMarketScanner() {
+      const btn = document.getElementById("scanAllBtn");
+      const box = document.getElementById("scannerBox");
+      const list = document.getElementById("scanResultsList");
+      const meta = document.getElementById("scanMeta");
+
+      btn.disabled = true;
+      btn.textContent = "⏳ جاري مسح 22 زوجاً (16 ث)...";
+      box.classList.remove("hidden");
+      meta.textContent = "جاري الفحص...";
+      list.innerHTML = `<div class="text-amber-300 text-center py-2">يتم فحص جميع الأزواج بنظام الدفعات الآمنة...</div>`;
+
+      try {
+        const res = await fetch(`/api/scan?tf=${currentTf}`);
+        const data = await res.json();
+
+        btn.disabled = false;
+        btn.textContent = "🔍 مسح الـ 22 زوجاً الآن";
+
+        if (!res.ok) {
+          list.innerHTML = `<div class="text-rose-400">${data.error || "فشل المسح"}</div>`;
+          return;
+        }
+
+        meta.textContent = `تم فحص ${data.scanned_count} زوجاً | ${data.scan_time}`;
+        list.innerHTML = "";
+
+        if (data.active_signals && data.active_signals.length > 0) {
+          data.active_signals.forEach(item => {
+            const isCall = item.signal === "CALL";
+            const row = document.createElement("div");
+            row.className = `flex items-center justify-between p-2 rounded-lg border cursor-pointer transition ${
+              isCall ? "bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25" : "bg-rose-500/15 border-rose-500/40 hover:bg-rose-500/25"
+            }`;
+            row.onclick = () => openPairFromScanner(item.symbol);
+            row.innerHTML = `
+              <span class="font-bold text-white">${item.symbol}</span>
+              <span class="font-black ${isCall ? "text-emerald-400" : "text-rose-400"}">
+                ${isCall ? "🟢 CALL (صعود)" : "🔴 PUT (هبوط)"}
+              </span>
+            `;
+            list.appendChild(row);
+          });
+        } else {
+          const emptyMsg = document.createElement("div");
+          emptyMsg.className = "text-slate-400 text-center py-1";
+          emptyMsg.textContent = "لا توجد إشارة مؤكدة حالياً — أقرب الأزواج للبولينجر:";
+          list.appendChild(emptyMsg);
+
+          if (data.near_setups && data.near_setups.length > 0) {
+            data.near_setups.forEach(item => {
+              const row = document.createElement("div");
+              row.className = "flex items-center justify-between bg-slate-900 hover:bg-slate-800 px-2.5 py-1.5 rounded border border-slate-800 cursor-pointer";
+              row.onclick = () => openPairFromScanner(item.symbol);
+              row.innerHTML = `
+                <span class="font-semibold text-slate-200">${item.symbol}</span>
+                <span class="text-amber-300 font-mono">متبقي ${item.distance_pips} نقطة (${item.bias})</span>
+              `;
+              list.appendChild(row);
+            });
+          }
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "🔍 مسح الـ 22 زوجاً الآن";
+        list.innerHTML = `<div class="text-rose-400">تعذر إكمال الفحص، حاول مرة أخرى.</div>`;
+      }
+    }
+
     setInterval(() => {
       const tfSec = getTfSeconds(currentTf);
       const nowSec = Math.floor(Date.now() / 1000);
@@ -350,7 +428,6 @@
       document.getElementById("candleCountdown").textContent = `${mins}:${secs}`;
     }, 1000);
 
-    // أزرار الفريمات
     document.querySelectorAll(".tf-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tf-btn").forEach(b => {
@@ -362,7 +439,6 @@
       });
     });
 
-    // أزرار إظهار وإخفاء المؤشرات
     document.getElementById("toggleSR").addEventListener("click", () => {
       showSR = !showSR;
       const symbol = document.getElementById("pairSelect").value || "EUR/USD";
@@ -382,6 +458,7 @@
     });
 
     document.getElementById("analyzeBtn").addEventListener("click", fetchAndRender);
+    document.getElementById("scanAllBtn").addEventListener("click", runMarketScanner);
     document.getElementById("pairSelect").addEventListener("change", fetchAndRender);
 
     loadPairs().then(fetchAndRender);
