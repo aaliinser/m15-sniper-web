@@ -14,17 +14,16 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-  <!-- الشريط العلوي: البث الحي + جلسات البورصة العالمية + الصوت + ساعة غزة -->
+  <!-- الشريط العلوي -->
   <header class="border-b border-slate-900 bg-[#070a11] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-3">
       <div id="wsDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></div>
       <h1 class="text-base sm:text-lg font-black tracking-wider text-amber-400">
         M15 SNIPER <span class="text-white">PRO</span>
-        <span class="text-[11px] text-slate-400 font-normal hidden sm:inline">| منصة التحليل اللحظي المتكاملة</span>
+        <span class="text-[11px] text-slate-400 font-normal hidden sm:inline">| تحليل لحظي + تنبؤ زمني كمي</span>
       </h1>
     </div>
 
-    <!-- شريط جلسات البورصة العالمية -->
     <div id="sessionsBar" class="flex flex-wrap items-center gap-1.5 text-[11px]"></div>
 
     <div class="flex items-center gap-2 text-xs">
@@ -43,7 +42,7 @@
     <section class="lg:col-span-4 terminal-card rounded-xl p-4 flex flex-col justify-between gap-3">
       <div class="space-y-3">
 
-        <!-- تبويبات التنقل السريع (مركز الإشارات | إدارة رأس المال | قراءة المؤشرات) -->
+        <!-- تبويبات التنقل -->
         <div class="grid grid-cols-3 gap-1.5 bg-[#05070a] p-1 rounded-lg border border-slate-900 text-xs font-bold">
           <button type="button" onclick="switchSideTab('signals')" id="tabBtn-signals" class="py-1.5 rounded-md bg-amber-500 text-slate-950 transition">
             🎯 مركز الإشارات
@@ -57,9 +56,9 @@
         </div>
 
         <!-- التبويب 1: مركز الإشارات والماسح الذكي -->
-        <div id="tabContent-signals" class="space-y-3">
+        <div id="tabContent-signals" class="space-y-2.5">
 
-          <!-- مربع النسخ السريع لاسم الزوج -->
+          <!-- مربع النسخ السريع -->
           <div class="terminal-sub rounded-xl p-2 flex items-center justify-between gap-2 border-amber-500/30">
             <div class="flex items-center gap-2">
               <span class="text-[11px] text-slate-400">الزوج النشط:</span>
@@ -111,12 +110,12 @@
             </div>
           </div>
 
-          <!-- أزرار الفحص والمسح الكامل -->
+          <!-- أزرار الفحص والمسح -->
           <div class="grid grid-cols-2 gap-2">
-            <button id="analyzeBtn" class="bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 font-bold py-2.5 px-2 rounded-xl text-xs transition">
+            <button id="analyzeBtn" class="bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 font-bold py-2 px-2 rounded-xl text-xs transition">
               🎯 فحص الزوج الحالي
             </button>
-            <button id="scanAllBtn" class="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black py-2.5 px-2 rounded-xl text-xs shadow-lg transition">
+            <button id="scanAllBtn" class="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black py-2 px-2 rounded-xl text-xs shadow-lg transition">
               🔍 مسح 22/22 زوجاً
             </button>
           </div>
@@ -124,7 +123,7 @@
           <!-- صندوق نتائج ماسح السوق -->
           <div id="scannerBox" class="hidden rounded-xl p-3 border border-amber-500/30 bg-black/90 space-y-2">
             <div class="flex items-center justify-between border-b border-slate-900 pb-1">
-              <span class="text-xs font-bold text-amber-400">📡 نتائج ماسح السوق الكامل</span>
+              <span class="text-xs font-bold text-amber-400">📡 نتائج الماسح + التوقيت المتوقع</span>
               <span id="scanMeta" class="text-[10px] text-slate-400">--:--</span>
             </div>
             <div id="scanResultsList" class="space-y-1.5 text-xs"></div>
@@ -136,7 +135,17 @@
             <span id="candleCountdown" class="font-mono text-sm font-black text-amber-400">--:--</span>
           </div>
 
-          <!-- تنبيه التلامس اللحظي الفوري أثناء حركة الشمعة -->
+          <!-- بطاقة التنبؤ المستقبلي الذكي -->
+          <div id="predictiveCard" class="hidden rounded-xl p-3 border border-indigo-500/40 bg-indigo-950/20 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-indigo-300">🔮 التنبؤ الزمني الذكي (استعداد)</span>
+              <span id="predConfidenceBadge" class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200 font-mono text-[11px] font-black">ثقة --%</span>
+            </div>
+            <div id="predMainText" class="text-xs font-extrabold text-white"></div>
+            <div id="predSubText" class="text-[11px] text-slate-400"></div>
+          </div>
+
+          <!-- تنبيه التلامس اللحظي الفوري -->
           <div id="liveTickAlertBox" class="hidden rounded-lg px-3 py-2 border text-xs font-bold text-center animate-pulse"></div>
 
           <!-- بطاقة الإشارة المؤكدة -->
@@ -154,7 +163,7 @@
           </div>
         </div>
 
-        <!-- التبويب 2: حاسبة إدارة رأس المال وتتبع الصفقات بدون مضاعفة -->
+        <!-- التبويب 2: حاسبة إدارة رأس المال -->
         <div id="tabContent-capital" class="hidden space-y-3">
           <div class="terminal-sub rounded-xl p-3 space-y-2.5">
             <div class="flex items-center justify-between">
@@ -210,7 +219,7 @@
           </div>
         </div>
 
-        <!-- التبويب 3: ملخص قراءة المؤشرات المساعدة -->
+        <!-- التبويب 3: قراءة المؤشرات المساعدة -->
         <div id="tabContent-technical" class="hidden space-y-2.5">
           <div class="terminal-sub rounded-xl p-3 space-y-2 text-xs">
             <h3 class="font-bold text-amber-400 border-b border-slate-900 pb-1.5">📊 تحليل المؤشرات المساعدة للزوج الحالي</h3>
@@ -239,7 +248,7 @@
 
       </div>
 
-      <!-- جدول مستويات الدعم والمقاومة المكتشفة (ثابت أسفل اللوحة) -->
+      <!-- جدول مستويات الدعم والمقاومة -->
       <div class="space-y-1.5 border-t border-slate-900 pt-2.5">
         <h3 class="text-[11px] font-bold text-slate-400">🛡️ أقوى مستويات الدعم والمقاومة (عدد اللمسات)</h3>
         <div id="srList" class="space-y-1 text-xs"></div>
@@ -254,7 +263,6 @@
           <span id="loadingSpinner" class="hidden text-xs text-amber-400 animate-pulse">جاري التحديث...</span>
         </div>
 
-        <!-- أزرار التحكم اليدوي بالمؤشرات والتبديل بين الشارت الذكي و TradingView -->
         <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
           <button id="toggleChartMode" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold hover:bg-indigo-500/30 transition">
             📺 شارت TradingView
@@ -277,10 +285,7 @@
         </div>
       </div>
 
-      <!-- حاوية الشارت الذكي -->
       <div id="chartContainer" class="w-full flex-1 min-h-[480px] rounded-lg overflow-hidden bg-black"></div>
-
-      <!-- حاوية شارت TradingView الرسمي (مخفية افتراضياً وتظهر بضغطة زر) -->
       <div id="tvWidgetContainer" class="hidden w-full flex-1 min-h-[480px] rounded-lg overflow-hidden bg-black"></div>
     </section>
   </main>
@@ -301,13 +306,11 @@
     let subscribedSymbol = null;
     let lastLiveAlertTime = 0;
 
-    // بيانات تتبع رأس المال والصفقات
     let tradeWins = 0;
     let tradeLosses = 0;
     let consecutiveLosses = 0;
     let netPnL = 0;
 
-    // 1. إدارة التبويبات الجانبية
     function switchSideTab(tabName) {
       ["signals", "capital", "technical"].forEach(t => {
         const content = document.getElementById(`tabContent-${t}`);
@@ -322,7 +325,6 @@
       });
     }
 
-    // 2. إدارة رأس المال بدون مضاعفة
     function updateCapitalDisplay() {
       const initCap = parseFloat(document.getElementById("capInitial").value) || 100;
       const currentBal = initCap + netPnL;
@@ -341,11 +343,8 @@
       document.getElementById("capWinRate").textContent = `${winRate}%`;
 
       const warnEl = document.getElementById("disciplineWarning");
-      if (consecutiveLosses >= 3) {
-        warnEl.classList.remove("hidden");
-      } else {
-        warnEl.classList.add("hidden");
-      }
+      if (consecutiveLosses >= 3) warnEl.classList.remove("hidden");
+      else warnEl.classList.add("hidden");
     }
 
     function recordTradeResult(isWin) {
@@ -374,7 +373,6 @@
       updateCapitalDisplay();
     }
 
-    // 3. شريط جلسات البورصة العالمية (بتوقيت UTC)
     function updateGlobalSessions() {
       const now = new Date();
       const utcHour = now.getUTCHours();
@@ -403,7 +401,6 @@
     updateGlobalSessions();
     setInterval(updateGlobalSessions, 60000);
 
-    // 4. نظام التنبيه الصوتي المدمج (Web Audio API)
     function ensureAudioContext() {
       if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -461,7 +458,6 @@
       }
     }
 
-    // 5. النسخ السريع
     function copyTextToClipboard(text, btnElement) {
       if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(text);
@@ -489,7 +485,6 @@
       copyTextToClipboard(document.getElementById("copyPairInput").value, document.getElementById("copyPairBtn"));
     }
 
-    // 6. تهيئة الشارت الأسود الاحترافي
     const container = document.getElementById("chartContainer");
     const chart = LightweightCharts.createChart(container, {
       layout: { background: { color: "#05070a" }, textColor: "#94a3b8" },
@@ -527,12 +522,33 @@
       }
     });
 
-    // 7. شارت TradingView الرسمي المدمج (وضع التبديل)
-    function renderTradingViewWidget(symbol, tf) {
+    // تحميل المؤشرات الرسمية لكل استراتيجية تلقائياً داخل شارت TradingView
+    function getTradingViewStudies(strategy) {
+      if (strategy === "sniper_m15") {
+        // البولينجر باندز + EMA 200
+        return ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
+      }
+      if (strategy === "trend") {
+        // 3 متوسطات متحركة (EMA) + مؤشر الزخم MACD
+        return ["MAExp@tv-basicstudies", "MAExp@tv-basicstudies", "MAExp@tv-basicstudies", "MACD@tv-basicstudies"];
+      }
+      if (strategy === "scalp") {
+        // البولينجر باندز + مؤشر القوة النسبية RSI
+        return ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
+      }
+      if (strategy === "price_action") {
+        // البولينجر باندز + EMA 200 + نقاط الارتداد والدعم والمقاومة Pivot Points
+        return ["BB@tv-basicstudies", "MAExp@tv-basicstudies", "PivotPointsStandard@tv-basicstudies"];
+      }
+      return ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
+    }
+
+    function renderTradingViewWidget(symbol, tf, strategy) {
       const tvContainer = document.getElementById("tvWidgetContainer");
       const cleanSym = "FX:" + symbol.replace("/", "");
       const tvIntervalMap = { "1m": "1", "5m": "5", "15m": "15", "1h": "60" };
       const interval = tvIntervalMap[tf] || "15";
+      const studiesList = getTradingViewStudies(strategy);
 
       tvContainer.innerHTML = "";
       const iframe = document.createElement("iframe");
@@ -540,7 +556,24 @@
       iframe.style.height = "100%";
       iframe.style.minHeight = "480px";
       iframe.style.border = "0";
-      iframe.src = `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(cleanSym)}&interval=${interval}&hidesidetoolbar=0&symboledit=0&saveimage=0&toolbarbg=05070a&studies=[]&theme=dark&style=1&timezone=Asia%2FHebron&withdateranges=1&locale=ar`;
+
+      const params = new URLSearchParams({
+        symbol: cleanSym,
+        interval: interval,
+        hidesidetoolbar: "0",
+        symboledit: "0",
+        saveimage: "0",
+        toolbarbg: "05070a",
+        theme: "dark",
+        style: "1",
+        timezone: "Asia/Hebron",
+        withdateranges: "1",
+        hidevolume: "1",
+        locale: "ar"
+      });
+      studiesList.forEach(st => params.append("studies", st));
+
+      iframe.src = `https://s.tradingview.com/widgetembed/?${params.toString()}`;
       tvContainer.appendChild(iframe);
     }
 
@@ -550,13 +583,14 @@
       const tvEl = document.getElementById("tvWidgetContainer");
       const btn = document.getElementById("toggleChartMode");
       const symbol = document.getElementById("pairSelect").value || "EUR/USD";
+      const strategy = document.getElementById("strategySelect").value || "sniper_m15";
 
       if (isTvMode) {
         smartEl.classList.add("hidden");
         tvEl.classList.remove("hidden");
         btn.textContent = "⚡ العودة للشارت الذكي";
         btn.className = "px-2.5 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-black transition";
-        renderTradingViewWidget(symbol, currentTf);
+        renderTradingViewWidget(symbol, currentTf, strategy);
       } else {
         tvEl.classList.add("hidden");
         smartEl.classList.remove("hidden");
@@ -566,7 +600,6 @@
       }
     });
 
-    // 8. البث اللحظي WebSocket + التنبيه الفوري عند ملامسة البولينجر
     function toFinnhubSymbol(pair) {
       return "OANDA:" + pair.replace("/", "_");
     }
@@ -587,17 +620,17 @@
       if (livePrice > ema200 && livePrice <= bbLow) {
         alertBox.classList.remove("hidden");
         alertBox.className = "rounded-lg px-3 py-2 border border-emerald-500 bg-emerald-950/70 text-emerald-300 text-xs font-black text-center animate-pulse";
-        alertBox.textContent = "⚡ تلامس لحظي حي: السعر يلامس البولينجر السفلي الآن (CALL محتمل عند الإغلاق)";
+        alertBox.textContent = "🔥 تحقق الهدف السعري الحي: السعر عند البولينجر السفلي الآن (CALL جاهز عند الإغلاق)";
         if (nowMs - lastLiveAlertTime > 15000) {
-          playTone(780, 0.12, "sine", 0);
+          playTone(780, 0.14, "triangle", 0);
           lastLiveAlertTime = nowMs;
         }
       } else if (livePrice < ema200 && livePrice >= bbUp) {
         alertBox.classList.remove("hidden");
         alertBox.className = "rounded-lg px-3 py-2 border border-rose-500 bg-rose-950/70 text-rose-300 text-xs font-black text-center animate-pulse";
-        alertBox.textContent = "⚡ تلامس لحظي حي: السعر يلامس البولينجر العلوي الآن (PUT محتمل عند الإغلاق)";
+        alertBox.textContent = "🔥 تحقق الهدف السعري الحي: السعر عند البولينجر العلوي الآن (PUT جاهز عند الإغلاق)";
         if (nowMs - lastLiveAlertTime > 15000) {
-          playTone(520, 0.12, "sine", 0);
+          playTone(520, 0.14, "triangle", 0);
           lastLiveAlertTime = nowMs;
         }
       } else {
@@ -678,7 +711,6 @@
       document.getElementById("copyPairInput").value = select.value || "EUR/USD";
     }
 
-    // 9. رسم خطوط الدعم والمقاومة والفيبوناتشي التلقائي
     function clearSRLines() {
       srPriceLines.forEach(line => candleSeries.removePriceLine(line));
       srPriceLines = [];
@@ -753,7 +785,25 @@
       document.getElementById("techBB").textContent = `${Number(summary.bb_upper).toFixed(digits)} / ${Number(summary.bb_lower).toFixed(digits)}`;
     }
 
-    // 10. جلب التحليل وعرض البيانات
+    function renderPredictiveCard(eta, digits) {
+      const card = document.getElementById("predictiveCard");
+      if (!eta) {
+        card.classList.add("hidden");
+        return;
+      }
+
+      card.classList.remove("hidden");
+      const isCall = eta.bias === "CALL";
+      const targetStr = Number(eta.target_price).toFixed(digits);
+
+      document.getElementById("predConfidenceBadge").textContent = `ثقة ${eta.confidence}%`;
+      document.getElementById("predMainText").innerHTML = `
+        <span class="${isCall ? 'text-emerald-400' : 'text-rose-400'}">${isCall ? '🟢 صعود (CALL)' : '🔴 هبوط (PUT)'}</span>
+        — الوصول المتوقع: <span class="font-mono text-amber-300 underline">${eta.eta_time}</span> (بعد ${eta.est_candles} شمعة)
+      `;
+      document.getElementById("predSubText").textContent = `الهدف السعري: ${targetStr} (متبقي ${eta.distance_pips} نقطة) | ${eta.notes}`;
+    }
+
     async function fetchAndRender() {
       const symbol = document.getElementById("pairSelect").value || "EUR/USD";
       currentStrategy = document.getElementById("strategySelect").value || "sniper_m15";
@@ -766,7 +816,7 @@
       document.getElementById("loadingSpinner").classList.remove("hidden");
 
       if (isTvMode) {
-        renderTradingViewWidget(symbol, currentTf);
+        renderTradingViewWidget(symbol, currentTf, currentStrategy);
       }
 
       try {
@@ -798,6 +848,7 @@
         renderSRLines(data.sr_levels, digits);
         renderFibLines(data.fib_levels);
         updateTechnicalSummary(data.summary, digits);
+        renderPredictiveCard(data.predictive_eta, digits);
 
         document.getElementById("livePriceBadge").textContent = Number(data.live_price).toFixed(digits);
         const dirEl = document.getElementById("signalDirection");
@@ -814,7 +865,7 @@
           sigBox.className = "rounded-xl p-3.5 border-2 border-rose-500 bg-rose-950/30 space-y-2 transition";
           playSignalAlert("PUT");
         } else {
-          dirEl.textContent = "⏳ مراقبة السوق (لا توجد إشارة)";
+          dirEl.textContent = "⏳ مراقبة السوق (لا توجد إشارة مؤكدة)";
           dirEl.className = "text-sm font-bold text-center py-2 rounded-lg bg-slate-900 text-slate-300";
           sigBox.className = "rounded-xl p-3.5 border border-slate-800 bg-black space-y-2 transition";
         }
@@ -834,7 +885,6 @@
       fetchAndRender();
     }
 
-    // 11. ماسح السوق الكامل (22/22 زوجاً)
     async function runMarketScanner() {
       const btn = document.getElementById("scanAllBtn");
       const box = document.getElementById("scannerBox");
@@ -846,7 +896,7 @@
       btn.textContent = "⏳ مسح 22 زوجاً...";
       box.classList.remove("hidden");
       meta.textContent = "جاري الفحص...";
-      list.innerHTML = `<div class="text-amber-300 text-center py-2">يتم فحص جميع الأزواج الـ 22 بدفعات آمنة لضمان التغطية الكاملة...</div>`;
+      list.innerHTML = `<div class="text-amber-300 text-center py-2">يتم فحص جميع الأزواج الـ 22 وحساب التوقيت المتوقع للوصول...</div>`;
 
       try {
         const res = await fetch(`/api/scan?tf=${currentTf}&strategy=${encodeURIComponent(currentStrategy)}`);
@@ -878,35 +928,41 @@
                 <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 border border-slate-700">نسخ</button>
               </div>
               <span class="font-black ${isCall ? "text-emerald-400" : "text-rose-400"}">
-                ${isCall ? "🟢 CALL" : "🔴 PUT"}
+                ${isCall ? "🟢 CALL الآن" : "🔴 PUT الآن"}
               </span>
             `;
             list.appendChild(row);
           });
         } else {
           const emptyMsg = document.createElement("div");
-          emptyMsg.className = "text-slate-400 text-center py-1 text-[11px]";
-          emptyMsg.textContent = "لا توجد إشارة مؤكدة حالياً — أقرب الفرص المتوافقة مع الاتجاه:";
+          emptyMsg.className = "text-indigo-300 text-center py-1 text-[11px] font-bold";
+          emptyMsg.textContent = "🔮 أقرب الفرص وتوقيت الوصول المتوقع (بتوقيت غزة):";
           list.appendChild(emptyMsg);
 
           if (data.near_setups && data.near_setups.length > 0) {
             data.near_setups.forEach(item => {
               const row = document.createElement("div");
-              row.className = "flex items-center justify-between bg-slate-950 hover:bg-slate-900 px-2.5 py-1.5 rounded border border-slate-800 cursor-pointer";
+              row.className = "flex flex-col gap-1 bg-slate-950 hover:bg-slate-900 px-2.5 py-2 rounded border border-slate-800 cursor-pointer";
               row.onclick = () => openPairFromScanner(item.symbol);
               row.innerHTML = `
-                <div class="flex items-center gap-2">
-                  <span class="font-semibold text-slate-200">${item.symbol}</span>
-                  <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 border border-slate-700">نسخ</button>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-white">${item.symbol}</span>
+                    <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 border border-slate-700">نسخ</button>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">ثقة ${item.confidence}%</span>
                 </div>
-                <span class="text-amber-300 font-mono text-[11px]">متبقي ${item.distance_pips} نقطة (${item.bias})</span>
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="${item.bias === 'CALL' ? 'text-emerald-400' : 'text-rose-400'} font-bold">${item.bias} (متبقي ${item.distance_pips} نقطة)</span>
+                  <span class="text-amber-300 font-mono font-bold">⏰ الساعة ${item.eta_time}</span>
+                </div>
               `;
               list.appendChild(row);
             });
           } else {
             const noNear = document.createElement("div");
             noNear.className = "text-slate-500 text-center py-1 text-[11px]";
-            noNear.textContent = "جميع الأزواج بعيدة حالياً عن حدود البولينجر.";
+            noNear.textContent = "لا توجد أزواج ضمن نطاق الوصول السريع حالياً.";
             list.appendChild(noNear);
           }
         }
@@ -917,7 +973,6 @@
       }
     }
 
-    // 12. العداد التنازلي + التنبيه الصوتي في آخر 5 ثوانٍ
     setInterval(() => {
       const tfSec = getTfSeconds(currentTf);
       const nowSec = Math.floor(Date.now() / 1000);
@@ -939,7 +994,6 @@
       }
     }, 1000);
 
-    // 13. ربط أزرار التحكم اليدوي بالمؤشرات
     document.querySelectorAll(".tf-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tf-btn").forEach(b => {
