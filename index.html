@@ -32,7 +32,6 @@
       overflow-x: hidden;
     }
 
-    /* الشريط العلوي */
     .topbar {
       display: flex;
       flex-wrap: wrap;
@@ -108,7 +107,6 @@
       color: #e2e8f0;
     }
 
-    /* التخطيط الرئيسي */
     .layout {
       display: grid;
       grid-template-columns: 380px 1fr;
@@ -129,7 +127,6 @@
       padding: 14px;
     }
 
-    /* التبويبات الجانبية */
     .tabs {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -161,7 +158,6 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* عناصر التحكم */
     .active-pair-row {
       display: flex;
       align-items: center;
@@ -274,7 +270,6 @@
       color: var(--gold);
     }
 
-    /* بطاقة الإشارة */
     .signal-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -327,7 +322,6 @@
       line-height: 1.5;
     }
 
-    /* بطاقة التنبؤ الزمني */
     .eta-card {
       background: var(--bg-input);
       border: 1px solid var(--border);
@@ -352,7 +346,6 @@
       color: #cbd5e1;
     }
 
-    /* نتائج المسح */
     .scan-results {
       background: var(--bg-input);
       border: 1px solid var(--border);
@@ -377,7 +370,6 @@
 
     .scan-item:hover { border-color: var(--gold); }
 
-    /* منطقة الشارت */
     .chart-header {
       display: flex;
       flex-wrap: wrap;
@@ -439,7 +431,6 @@
       display: none;
     }
 
-    /* حاسبة رأس المال وقراءة السوق */
     .stat-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -475,7 +466,6 @@
       font-family: monospace;
     }
 
-    /* وحدة الرادار التلقائي (6 ساعات) */
     #ap-radar-bar {
       position: fixed;
       bottom: 16px;
@@ -540,7 +530,6 @@
 </head>
 <body>
 
-  <!-- الشريط العلوي -->
   <header class="topbar">
     <div class="brand">
       🎯 M15 SNIPER PRO <span class="badge">QUANT TERMINAL</span>
@@ -554,10 +543,8 @@
     <div class="clock-box" id="gazaClock">توقيت غزة (UTC+2): --:--:--</div>
   </header>
 
-  <!-- المحتوى الرئيسي -->
   <main class="layout">
 
-    <!-- اللوحة الجانبية اليمنى -->
     <aside class="panel">
       <div class="tabs">
         <button class="tab-btn active" data-tab="signals">🎯 مركز الإشارات</button>
@@ -565,7 +552,6 @@
         <button class="tab-btn" data-tab="market">📊 قراءة السوق</button>
       </div>
 
-      <!-- تبويب 1: مركز الإشارات -->
       <div id="tab-signals" class="tab-content active">
         <div class="active-pair-row">
           <span style="font-size:12px;color:var(--text-muted)">الزوج النشط:</span>
@@ -608,7 +594,6 @@
           <span class="countdown-val" id="candleCountdown">--:--</span>
         </div>
 
-        <!-- بطاقة الإشارة -->
         <div class="signal-card">
           <div class="live-price-row">
             <span>السعر اللحظي المباشر</span>
@@ -618,7 +603,6 @@
           <div class="signal-reason" id="signalReason">اضغط على فحص الزوج الحالي أو مسح السوق للبدء.</div>
         </div>
 
-        <!-- بطاقة التنبؤ الزمني -->
         <div class="eta-card">
           <div class="eta-title">
             <span>⏱️ التنبؤ الزمني الذكي (ETA)</span>
@@ -630,13 +614,11 @@
           <div class="eta-row"><span>التوافق الفني:</span><span id="etaConfluence" style="color:var(--text-muted)">--</span></div>
         </div>
 
-        <!-- نتائج المسح -->
         <div class="scan-results" id="scanResults">
           <div style="color:var(--text-muted);text-align:center;">نتائج المسح الشامل ستظهر هنا...</div>
         </div>
       </div>
 
-      <!-- تبويب 2: إدارة رأس المال (بدون مضاعفة) -->
       <div id="tab-capital" class="tab-content">
         <div class="form-group">
           <label>رأس المال الحالي ($)</label>
@@ -680,7 +662,6 @@
         <button class="btn btn-dark" id="resetSessionBtn" style="width:100%;margin-top:10px;">🔄 تصفير الجلسة</button>
       </div>
 
-      <!-- تبويب 3: قراءة السوق والمستويات -->
       <div id="tab-market" class="tab-content">
         <div style="font-size:12px;color:var(--gold);font-weight:700;margin-bottom:8px;">مستويات المؤشرات الحالية</div>
         <div class="levels-list" id="marketLevelsList">
@@ -696,7 +677,6 @@
       </div>
     </aside>
 
-    <!-- منطقة الشارت اليسرى -->
     <section class="panel">
       <div class="chart-header">
         <div class="chart-title" id="chartTitle">EUR/USD — 15M</div>
@@ -717,7 +697,6 @@
 
   </main>
 
-  <!-- وحدة الرادار التلقائي المحمي (6 ساعات) -->
   <div id="ap-toast"></div>
   <div id="ap-radar-bar">
     <button id="ap-toggle-btn" type="button">🤖 الرادار التلقائي: متوقف</button>
@@ -746,7 +725,6 @@
 
       const toggles = { ema: true, bb: true, fib: true, sr: true, tv: false };
 
-      // تعبئة قائمة الأزواج
       const pairSelect = document.getElementById("pairSelect");
       PAIRS_22.forEach(p => {
         const opt = document.createElement("option");
@@ -755,7 +733,6 @@
         pairSelect.appendChild(opt);
       });
 
-      // التبويبات الجانبية
       document.querySelectorAll(".tab-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -765,7 +742,6 @@
         });
       });
 
-      // أزرار الفريم الزمني
       document.querySelectorAll(".tf-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
@@ -803,7 +779,6 @@
         document.getElementById("chartTitle").textContent = `${currentSymbol} — ${currentTimeframe}`;
       }
 
-      // أزرار المؤشرات و TradingView
       document.querySelectorAll(".ind-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           const ind = btn.dataset.ind;
@@ -843,7 +818,6 @@
         });
       }
 
-      // الساعة الحية وجلسات السوق + العداد التنازلي
       function updateClocks() {
         const now = new Date();
         const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -868,7 +842,6 @@
       setInterval(updateClocks, 1000);
       updateClocks();
 
-      // Finnhub WebSocket للبث المباشر
       function connectFinnhub(symbol) {
         if (!finnhubKey) return;
         if (finnhubSocket) {
@@ -894,7 +867,6 @@
         } catch (_) {}
       }
 
-      // تنبيه صوتي
       function playAlertBeep() {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -910,7 +882,6 @@
         } catch (_) {}
       }
 
-      // تحليل الزوج الحالي
       async function analyzeCurrentPair() {
         const signalBox = document.getElementById("signalBox");
         const signalReason = document.getElementById("signalReason");
@@ -951,14 +922,12 @@
           }
           signalReason.textContent = a.reason;
 
-          // تحديث التنبؤ الزمني
           document.getElementById("etaConf").textContent = `ثقة ${a.eta.confidence}%`;
           document.getElementById("etaDir").textContent = a.eta.direction === "CALL" ? "🟢 صعود (CALL)" : "🔴 هبوط (PUT)";
           document.getElementById("etaTarget").textContent = a.eta.target_price;
           document.getElementById("etaTime").textContent = `${a.eta.dist_pips} نقطة (~${a.eta.time})`;
           document.getElementById("etaConfluence").textContent = a.eta.confluence;
 
-          // تحديث تبويب قراءة السوق
           document.getElementById("lvlBbUp").textContent = a.bb_upper;
           document.getElementById("lvlBbLow").textContent = a.bb_lower;
           document.getElementById("lvlEma200").textContent = a.ema200;
@@ -975,7 +944,6 @@
         }
       }
 
-      // رسم الشارت الاحترافي على Canvas
       function drawChart() {
         if (!lastChartData || !lastChartData.candles || toggles.tv) return;
         const canvas = document.getElementById("candleCanvas");
@@ -1005,7 +973,6 @@
         const range = Math.max(maxP - minP, 1e-6);
         const yOf = (p) => padT + ((maxP - p) / range) * plotH;
 
-        // شبكة خفيفة
         ctx.strokeStyle = "#111827";
         ctx.lineWidth = 1;
         for (let i = 0; i <= 5; i++) {
@@ -1020,7 +987,6 @@
           ctx.fillText(priceLbl, w - padR + 6, y + 4);
         }
 
-        // خطوط فيبوناتشي
         if (toggles.fib && analysis.fib) {
           ctx.setLineDash([4, 4]);
           ctx.strokeStyle = "rgba(236, 72, 153, 0.45)";
@@ -1039,7 +1005,6 @@
           ctx.setLineDash([]);
         }
 
-        // خطوط الدعم والمقاومة
         if (toggles.sr) {
           ctx.lineWidth = 1.5;
           (analysis.resistances || []).forEach(r => {
@@ -1057,7 +1022,6 @@
         const stepX = plotW / candles.length;
         const bodyW = Math.max(2, stepX * 0.62);
 
-        // البولينجر و EMA200
         function drawLine(key, color, width) {
           ctx.strokeStyle = color;
           ctx.lineWidth = width;
@@ -1080,7 +1044,6 @@
           drawLine("ema200", "#f59e0b", 2);
         }
 
-        // الشموع اليابانية
         candles.forEach((c, i) => {
           const x = padL + i * stepX + stepX / 2;
           const isUp = c.close >= c.open;
@@ -1104,7 +1067,6 @@
 
       window.addEventListener("resize", drawChart);
 
-      // المسح الشامل اليدوي
       async function runManualScan() {
         const box = document.getElementById("scanResults");
         box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح السوق (${currentTimeframe})...</div>`;
@@ -1162,7 +1124,6 @@
       document.getElementById("analyzeBtn").addEventListener("click", analyzeCurrentPair);
       document.getElementById("scanBtn").addEventListener("click", runManualScan);
 
-      // حاسبة رأس المال (بدون مضاعفة)
       let wins = 0, losses = 0, netProfit = 0;
       function updateCapitalCalc() {
         const bal = parseFloat(document.getElementById("capBalance").value) || 0;
@@ -1200,7 +1161,7 @@
       });
       updateCapitalCalc();
 
-      // ================= وحدة الرادار التلقائي المحمي (6 ساعات) =================
+      // وحدة الرادار التلقائي المحمي (6 ساعات)
       const apBtn = document.getElementById("ap-toggle-btn");
       const apStateText = document.getElementById("ap-state-text");
       const apTimerEl = document.getElementById("ap-timer");
@@ -1337,7 +1298,6 @@
         }
       });
 
-      // مزامنة الحالة عند تحميل الصفحة
       fetch("/api/autopilot/status")
         .then(r => r.json())
         .then(data => {
@@ -1350,7 +1310,6 @@
         })
         .catch(() => {});
 
-      // فحص أولي عند فتح المنصة
       analyzeCurrentPair();
     })();
   </script>
