@@ -1,7 +1,5 @@
 import os
 import time
-import math
-import datetime
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -13,11 +11,12 @@ from fastapi.responses import FileResponse, JSONResponse
 app = FastAPI(title="M15 Sniper PRO")
 
 # ==========================================
-# 1. إعدادات مفاتيح API والتوزيع المتوازن (1600 طلب/يوم | 16 طلب/دقيقة)
+# 1. إعدادات مفاتيح API والتوزيع المتوازن (2400 طلب/يوم | 24 طلب/دقيقة)
 # ==========================================
 TWELVE_DATA_KEYS = [
     "3db4b82facc84c5a84dd9abc262a5acb",
-    "5d43d790ef114a7994876c0829e9fe4a"
+    "5d43d790ef114a7994876c0829e9fe4a",
+    "5c929836e14d412182bbc5fce8f61b70"
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 
@@ -26,7 +25,7 @@ cache_lock = threading.Lock()
 autopilot_lock = threading.Lock()
 
 current_key_index = 0
-key_cooldowns = {0: 0.0, 1: 0.0}
+key_cooldowns = {0: 0.0, 1: 0.0, 2: 0.0}
 
 # حالة الرادار التلقائي على السيرفر (حماية 6 ساعات)
 AUTO_PILOT_DURATION_SECONDS = 6 * 3600  # 21600 ثانية
@@ -39,7 +38,7 @@ CACHE_STORE = {}
 CACHE_TTL_SECONDS = 150
 
 HTTP_SESSION = requests.Session()
-HTTP_SESSION.headers.update({"User-Agent": "M15-Sniper-PRO/2.1"})
+HTTP_SESSION.headers.update({"User-Agent": "M15-Sniper-PRO/2.3"})
 
 PAIRS_22 = [
     "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
@@ -53,13 +52,6 @@ TIMEFRAME_MAP = {
     "5M": "5min",
     "15M": "15min",
     "1H": "1h"
-}
-
-TIMEFRAME_MINUTES = {
-    "1M": 1,
-    "5M": 5,
-    "15M": 15,
-    "1H": 60
 }
 
 def normalize_symbol(raw_sym):
@@ -82,9 +74,6 @@ def normalize_strategy(raw_strat):
 
 def get_price_decimals(symbol):
     return 3 if "JPY" in symbol else 5
-
-def get_pip_factor(symbol):
-    return 100.0 if "JPY" in symbol else 10000.0
 
 def get_available_key_index(now_ts):
     global current_key_index
@@ -118,7 +107,7 @@ def check_autopilot_state():
         return active, remaining
 
 # ==========================================
-# 2. جلب البيانات مع التوزيع الذكي والتبديل الفوري
+# 2. جلب البيانات مع التوزيع الذكي والتبديل الفوري بين 3 مفاتيح
 # ==========================================
 def fetch_candles(symbol, timeframe="15M", outputsize=250):
     symbol = normalize_symbol(symbol)
@@ -135,7 +124,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=250):
             if now - cached_time < CACHE_TTL_SECONDS:
                 return cached_df.copy(), None
 
-    last_error = "تم الوصول للحد المؤقت للطلبات (16 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
+    last_error = "تم الوصول للحد المؤقت للطلبات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
     num_keys = len(TWELVE_DATA_KEYS)
 
     for _ in range(num_keys):
@@ -268,9 +257,8 @@ def detect_sr_and_fib(df, symbol):
 
     return resistances, supports, fib_levels
 
-def evaluate_strategy(df, symbol, strategy_id, timeframe="15M"):
+def evaluate_strategy(df, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
-    pip_factor = get_pip_factor(symbol)
     strategy_id = normalize_strategy(strategy_id)
 
     c = df.iloc[-2]
@@ -356,43 +344,6 @@ def evaluate_strategy(df, symbol, strategy_id, timeframe="15M"):
             reason = "بانتظار ذيل رفض واضح عند مناطق الدعم أو المقاومة"
 
     live_price = round(float(live["close"]), decimals)
-    dist_upper = max(0.0, bb_u - float(live["close"]))
-    dist_lower = max(0.0, float(live["close"]) - bb_l)
-    min_speed = 0.01 if "JPY" in symbol else 0.0001
-
-    if dist_upper <= dist_lower:
-        eta_dir = "PUT"
-        target_price = round(bb_u, decimals)
-        dist_pips = round(dist_upper * pip_factor, 1)
-        speed = max(atr * 0.45, min_speed)
-        candles_needed = max(1, min(6, int(math.ceil(dist_upper / speed)))) if dist_upper > 0 else 1
-        confluence = []
-        for r in resistances:
-            if abs(r["price"] - bb_u) <= atr * 0.6:
-                confluence.append(f"RESISTANCE ({r['touches']} لمسات)")
-        for fname, fval in fib_levels.items():
-            if abs(fval - bb_u) <= atr * 0.5:
-                confluence.append(f"مستوى {fname} Fib")
-    else:
-        eta_dir = "CALL"
-        target_price = round(bb_l, decimals)
-        dist_pips = round(dist_lower * pip_factor, 1)
-        speed = max(atr * 0.45, min_speed)
-        candles_needed = max(1, min(6, int(math.ceil(dist_lower / speed)))) if dist_lower > 0 else 1
-        confluence = []
-        for s in supports:
-            if abs(s["price"] - bb_l) <= atr * 0.6:
-                confluence.append(f"SUPPORT ({s['touches']} لمسات)")
-        for fname, fval in fib_levels.items():
-            if abs(fval - bb_l) <= atr * 0.5:
-                confluence.append(f"مستوى {fname} Fib")
-
-    tf_min = TIMEFRAME_MINUTES.get(str(timeframe).upper(), 15)
-    now_gaza = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=2)
-    rem_min = tf_min - (now_gaza.minute % tf_min)
-    eta_time = (now_gaza + datetime.timedelta(minutes=rem_min + (candles_needed - 1) * tf_min)).strftime("%H:%M")
-
-    eta_conf = min(92, max(65, 70 + len(confluence) * 8 - candles_needed * 2))
 
     return {
         "signal": signal,
@@ -404,16 +355,7 @@ def evaluate_strategy(df, symbol, strategy_id, timeframe="15M"):
         "ema200": round(ema200, decimals),
         "resistances": [{"price": round(r["price"], decimals), "touches": r["touches"]} for r in resistances],
         "supports": [{"price": round(s["price"], decimals), "touches": s["touches"]} for s in supports],
-        "fib": fib_levels,
-        "eta": {
-            "direction": eta_dir,
-            "target_price": target_price,
-            "dist_pips": dist_pips,
-            "candles": candles_needed,
-            "time": eta_time,
-            "confidence": eta_conf,
-            "confluence": " + ".join(confluence) if confluence else "حد البولينجر الديناميكي"
-        }
+        "fib": fib_levels
     }
 
 def scan_single_pair(sym, timeframe, strategy):
@@ -421,7 +363,7 @@ def scan_single_pair(sym, timeframe, strategy):
     if err or df is None:
         return None
     df = calculate_indicators(df)
-    res = evaluate_strategy(df, sym, strategy, timeframe)
+    res = evaluate_strategy(df, sym, strategy)
     return sym, res
 
 # ==========================================
@@ -485,7 +427,7 @@ def api_analyze(
         return JSONResponse({"ok": False, "error": err})
 
     df = calculate_indicators(df)
-    analysis = evaluate_strategy(df, sym, strategy, tf)
+    analysis = evaluate_strategy(df, sym, strategy)
 
     chart_df = df.tail(90).copy()
     candles = []
@@ -528,12 +470,9 @@ def api_scan(
                 "auto_stopped": True,
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
             })
-        target_pairs = PAIRS_22[:22]
-    else:
-        target_pairs = PAIRS_22
 
+    target_pairs = PAIRS_22
     confirmed = []
-    upcoming = []
     scanned_count = 0
 
     with ThreadPoolExecutor(max_workers=6) as executor:
@@ -556,24 +495,13 @@ def api_scan(
                     "reason": res["reason"],
                     "price": res["live_price"]
                 })
-            else:
-                upcoming.append({
-                    "symbol": sym,
-                    "direction": res["eta"]["direction"],
-                    "dist_pips": res["eta"]["dist_pips"],
-                    "time": res["eta"]["time"],
-                    "confidence": res["eta"]["confidence"]
-                })
-
-    upcoming.sort(key=lambda x: x["dist_pips"])
 
     return JSONResponse({
         "ok": True,
         "mode": m,
         "scanned": scanned_count,
         "total": len(target_pairs),
-        "confirmed": confirmed,
-        "upcoming": upcoming[:3]
+        "confirmed": confirmed
     })
 
 if __name__ == "__main__":
