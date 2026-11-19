@@ -52,7 +52,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/3.1"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/3.2"})
         thread_local.session = s
     return thread_local.session
 
@@ -93,6 +93,8 @@ def normalize_strategy(raw_strat):
         return "3"
     if s in ("4", "pa", "sr", "price_action") or "4." in s:
         return "4"
+    if s in ("5", "stoch", "stochastic", "h1") or "stoch" in s or "5." in s:
+        return "5"
     return "1"
 
 def get_price_decimals(symbol):
@@ -212,7 +214,7 @@ def filter_closed_candles(df, timeframe):
     return closed_df, live_price
 
 # ==========================================
-# 3. Audited Indicators (Wilder, No bfill, Strict Closed Candles)
+# 3. Audited Indicators (Strict Closed Candles)
 # ==========================================
 def calculate_indicators(closed_df):
     df = closed_df.copy()
@@ -251,6 +253,13 @@ def calculate_indicators(closed_df):
         (low - prev_close).abs()
     ], axis=1).max(axis=1)
     df["atr"] = tr.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
+
+    # Strategy 5: Stochastic Oscillator (%K=9, %D=5)
+    lowest_low = low.rolling(window=9, min_periods=9).min()
+    highest_high = high.rolling(window=9, min_periods=9).max()
+    denom = (highest_high - lowest_low).replace(0.0, np.nan)
+    df["stoch_k"] = 100.0 * ((close - lowest_low) / denom)
+    df["stoch_d"] = df["stoch_k"].rolling(window=5, min_periods=5).mean()
 
     return df
 
@@ -298,7 +307,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
     strategy_id = normalize_strategy(strategy_id)
 
-    if len(closed_df) < 200:
+    if len(closed_df) < 201:
         return {
             "signal": "WAIT",
             "reason": "بيانات الشموع المغلقة غير كافية لحساب EMA 200.",
@@ -308,7 +317,8 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
             "resistances": [], "supports": [], "fib": {}
         }
 
-    c = closed_df.iloc[-1]  # Strictly last CLOSED candle
+    c = closed_df.iloc[-1]     # Strictly last CLOSED candle
+    prev = closed_df.iloc[-2]  # Previous CLOSED candle
 
     required_cols = ["bb_upper", "bb_lower", "ema200"]
     if strategy_id == "2":
@@ -317,9 +327,13 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         required_cols.append("rsi")
     elif strategy_id == "4":
         required_cols.append("atr")
+    elif strategy_id == "5":
+        required_cols.extend(["stoch_k", "stoch_d"])
 
     # Strict NaN guard: never fabricate indicator values
-    if any(pd.isna(c[col]) for col in required_cols):
+    if any(pd.isna(c[col]) for col in required_cols) or (
+        strategy_id == "5" and (pd.isna(prev["stoch_k"]) or pd.isna(prev["stoch_d"]))
+    ):
         return {
             "signal": "WAIT",
             "reason": "مؤشرات التهيئة غير مكتملة (NaN) — تم تخطي التقييم.",
@@ -398,6 +412,23 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
             confidence = 55
         else:
             reason = "بانتظار ذيل رفض واضح عند مناطق الدعم أو المقاومة"
+
+    elif strategy_id == "5":  # H1 Stochastic Extreme Reversal (K=9, D=5, 10/90 + EMA200)
+        k_curr = float(c["stoch_k"])
+        d_curr = float(c["stoch_d"])
+        k_prev = float(prev["stoch_k"])
+        d_prev = float(prev["stoch_d"])
+
+        if close_p > ema200 and k_prev <= d_prev and k_curr > d_curr and k_curr < 10.0:
+            signal = "CALL"
+            reason = f"تقاطع صاعد Stoch(9,5) تحت 10 (K={k_curr:.1f}, D={d_curr:.1f}) فوق EMA 200"
+            confidence = 60
+        elif close_p < ema200 and k_prev >= d_prev and k_curr < d_curr and k_curr > 90.0:
+            signal = "PUT"
+            reason = f"تقاطع هابط Stoch(9,5) فوق 90 (K={k_curr:.1f}, D={d_curr:.1f}) تحت EMA 200"
+            confidence = 60
+        else:
+            reason = f"مراقبة Stoch(9,5) (K={k_curr:.1f}, D={d_curr:.1f}) مع توافق EMA 200"
 
     return {
         "signal": signal,
