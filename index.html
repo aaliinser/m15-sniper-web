@@ -547,6 +547,7 @@
             <option value="2">2. مع الاتجاه (Trend Following)</option>
             <option value="3">3. سكالبينج سريع (Scalp Reversal)</option>
             <option value="4">4. الارتداد والبرايس أكشن (S/R)</option>
+            <option value="5">5. Stochastic Extreme Reversal (H1 / 9,5)</option>
           </select>
         </div>
 
@@ -768,6 +769,7 @@
         const tvInt = currentTimeframe === "1M" ? "1" : currentTimeframe === "5M" ? "5" : currentTimeframe === "1H" ? "60" : "15";
         let studies = ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
         if (currentStrategy === "3") studies = ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
+        else if (currentStrategy === "5") studies = ["Stochastic@tv-basicstudies", "MAExp@tv-basicstudies"];
         new TradingView.widget({
           autosize: true,
           symbol: tvSym,
@@ -888,12 +890,12 @@
           }
           signalReason.textContent = a.reason;
 
-          document.getElementById("lvlBbUp").textContent = a.bb_upper;
-          document.getElementById("lvlBbLow").textContent = a.bb_lower;
-          document.getElementById("lvlEma200").textContent = a.ema200;
+          document.getElementById("lvlBbUp").textContent = a.bb_upper ?? "--";
+          document.getElementById("lvlBbLow").textContent = a.bb_lower ?? "--";
+          document.getElementById("lvlEma200").textContent = a.ema200 ?? "--";
 
           const fibList = document.getElementById("fibLevelsList");
-          fibList.innerHTML = Object.entries(a.fib)
+          fibList.innerHTML = Object.entries(a.fib || {})
             .map(([k, v]) => `<div class="level-row"><span>Fib ${k}</span><span>${v}</span></div>`)
             .join("");
 
