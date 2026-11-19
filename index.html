@@ -322,37 +322,13 @@
       line-height: 1.5;
     }
 
-    .eta-card {
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      margin-bottom: 12px;
-      font-size: 12px;
-    }
-
-    .eta-title {
-      color: var(--gold);
-      font-weight: 700;
-      margin-bottom: 6px;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .eta-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 4px;
-      color: #cbd5e1;
-    }
-
     .scan-results {
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px;
       font-size: 12px;
-      max-height: 240px;
+      max-height: 280px;
       overflow-y: auto;
     }
 
@@ -601,17 +577,6 @@
           </div>
           <div class="signal-box" id="signalBox">بانتظار الفحص...</div>
           <div class="signal-reason" id="signalReason">اضغط على فحص الزوج الحالي أو مسح السوق للبدء.</div>
-        </div>
-
-        <div class="eta-card">
-          <div class="eta-title">
-            <span>⏱️ التنبؤ الزمني الذكي (ETA)</span>
-            <span id="etaConf">--%</span>
-          </div>
-          <div class="eta-row"><span>الاتجاه المتوقع:</span><b id="etaDir">--</b></div>
-          <div class="eta-row"><span>السعر المستهدف:</span><b id="etaTarget" style="font-family:monospace">--</b></div>
-          <div class="eta-row"><span>المسافة / التوقيت:</span><b id="etaTime">--</b></div>
-          <div class="eta-row"><span>التوافق الفني:</span><span id="etaConfluence" style="color:var(--text-muted)">--</span></div>
         </div>
 
         <div class="scan-results" id="scanResults">
@@ -882,7 +847,7 @@
         } catch (_) {}
       }
 
-      async function analyzeCurrentPair() {
+      async function analyzeCurrentPair(silent = false) {
         const signalBox = document.getElementById("signalBox");
         const signalReason = document.getElementById("signalReason");
         signalBox.className = "signal-box";
@@ -913,20 +878,14 @@
           signalBox.className = "signal-box " + (a.signal === "CALL" || a.signal === "PUT" ? a.signal : "");
           if (a.signal === "CALL") {
             signalBox.textContent = `🟢 صعود (CALL) — ثقة ${a.confidence}%`;
-            playAlertBeep();
+            if (!silent) playAlertBeep();
           } else if (a.signal === "PUT") {
             signalBox.textContent = `🔴 هبوط (PUT) — ثقة ${a.confidence}%`;
-            playAlertBeep();
+            if (!silent) playAlertBeep();
           } else {
             signalBox.textContent = "⏸️ انتظار (WAIT)";
           }
           signalReason.textContent = a.reason;
-
-          document.getElementById("etaConf").textContent = `ثقة ${a.eta.confidence}%`;
-          document.getElementById("etaDir").textContent = a.eta.direction === "CALL" ? "🟢 صعود (CALL)" : "🔴 هبوط (PUT)";
-          document.getElementById("etaTarget").textContent = a.eta.target_price;
-          document.getElementById("etaTime").textContent = `${a.eta.dist_pips} نقطة (~${a.eta.time})`;
-          document.getElementById("etaConfluence").textContent = a.eta.confluence;
 
           document.getElementById("lvlBbUp").textContent = a.bb_upper;
           document.getElementById("lvlBbLow").textContent = a.bb_lower;
@@ -1096,17 +1055,7 @@
             </div>`;
           });
         } else {
-          html += `<div style="color:var(--text-muted);margin-bottom:8px;">لا توجد إشارة مؤكدة في هذه اللحظة.</div>`;
-        }
-
-        if (data.upcoming && data.upcoming.length > 0) {
-          html += `<div style="color:var(--gold);font-weight:700;margin:8px 0 5px;">⏳ أقرب 3 فرص قادمة:</div>`;
-          data.upcoming.forEach(u => {
-            html += `<div class="scan-item" data-sym="${u.symbol}">
-              <span><b>${u.symbol}</b> (${u.direction})</span>
-              <span style="color:#94a3b8">${u.dist_pips} نقطة (~${u.time})</span>
-            </div>`;
-          });
+          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه اللحظة.</div>`;
         }
         box.innerHTML = html;
         box.querySelectorAll(".scan-item").forEach(el => {
@@ -1121,7 +1070,7 @@
         });
       }
 
-      document.getElementById("analyzeBtn").addEventListener("click", analyzeCurrentPair);
+      document.getElementById("analyzeBtn").addEventListener("click", () => analyzeCurrentPair(false));
       document.getElementById("scanBtn").addEventListener("click", runManualScan);
 
       let wins = 0, losses = 0, netProfit = 0;
@@ -1193,7 +1142,7 @@
         if (isAutoActive) {
           apBtn.classList.add("active");
           apBtn.textContent = "🟢 الرادار التلقائي: مفعّل";
-          apStateText.textContent = "يفحص 16 زوجاً عند إغلاق كل شمعة";
+          apStateText.textContent = "يفحص 22/22 زوجاً عند إغلاق كل شمعة";
           apTimerEl.textContent = `متبقي: ${formatApTime(remainingSec)}`;
         } else {
           apBtn.classList.remove("active");
@@ -1236,7 +1185,7 @@
             pairSelect.value = currentSymbol;
             updateHeaderTitles();
             connectFinnhub(currentSymbol);
-            analyzeCurrentPair();
+            analyzeCurrentPair(true);
 
             const items = data.confirmed.map(c =>
               `<div>${c.signal === "CALL" ? "🟢" : "🔴"} <b>${c.symbol}</b> (${c.signal}) — ثقة ${c.confidence}%</div>`
@@ -1290,7 +1239,7 @@
               networkFailCount = 0;
               renderApUI();
               startApLoop();
-              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يتوقف تلقائياً عند انتهاء الوقت أو انقطاع النت).", "#10b981");
+              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص 22/22 زوجاً تلقائياً).", "#10b981");
             }
           } catch (_) {
             showApToast("⚠️ تعذر الاتصال بالسيرفر لتفعيل الرادار.", "#ef4444");
