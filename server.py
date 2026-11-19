@@ -528,7 +528,7 @@ def api_scan(
                 "auto_stopped": True,
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
             })
-        target_pairs = PAIRS_22[:16]
+        target_pairs = PAIRS_22[:22]
     else:
         target_pairs = PAIRS_22
 
