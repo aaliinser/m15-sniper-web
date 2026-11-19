@@ -22,14 +22,23 @@ FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 
 key_lock = threading.Lock()
 cache_lock = threading.Lock()
+autopilot_lock = threading.Lock()
+
 current_key_index = 0
-key_cooldowns = {0: 0.0, 1: 0.0}  # تتبع وقت التبريد لكل مفتاح عند الوصول لحد الدقيقة
+key_cooldowns = {0: 0.0, 1: 0.0}
+
+# حالة الرادار التلقائي على السيرفر (حماية 6 ساعات)
+AUTO_PILOT_DURATION_SECONDS = 6 * 3600  # 21600 ثانية
+AUTO_PILOT_STATE = {
+    "active": False,
+    "expires_at": 0.0
+}
 
 CACHE_STORE = {}
-CACHE_TTL_SECONDS = 150  # كاش لمدة دقيقتين ونصف لحماية الرصيد
+CACHE_TTL_SECONDS = 150
 
 HTTP_SESSION = requests.Session()
-HTTP_SESSION.headers.update({"User-Agent": "M15-Sniper-PRO/2.0"})
+HTTP_SESSION.headers.update({"User-Agent": "M15-Sniper-PRO/2.1"})
 
 PAIRS_22 = [
     "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
@@ -96,6 +105,16 @@ def cleanup_cache(now_ts):
         expired = [k for k, (ts, _) in CACHE_STORE.items() if now_ts - ts >= CACHE_TTL_SECONDS]
         for k in expired:
             CACHE_STORE.pop(k, None)
+
+def check_autopilot_state():
+    now_ts = time.time()
+    with autopilot_lock:
+        if AUTO_PILOT_STATE["active"] and now_ts >= AUTO_PILOT_STATE["expires_at"]:
+            AUTO_PILOT_STATE["active"] = False
+            AUTO_PILOT_STATE["expires_at"] = 0.0
+        active = AUTO_PILOT_STATE["active"]
+        remaining = max(0, int(AUTO_PILOT_STATE["expires_at"] - now_ts)) if active else 0
+        return active, remaining
 
 # ==========================================
 # 2. جلب البيانات مع التوزيع الذكي والتبديل الفوري
@@ -171,7 +190,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=250):
     return None, last_error
 
 # ==========================================
-# 3. الحسابات الفنية والاستراتيجيات الأربع
+# 3. الحسابات الفنية والاستراتيجيات الأربع (بدون أي تعديل)
 # ==========================================
 def calculate_indicators(df):
     close = df["close"]
@@ -405,7 +424,45 @@ def scan_single_pair(sym, timeframe, strategy):
     return sym, res
 
 # ==========================================
-# 4. مسارات API والواجهة (فحص 22/22 زوجاً بالتوازي)
+# 4. مسارات التحكم بالرادار التلقائي (6 ساعات)
+# ==========================================
+@app.route("/api/autopilot/start", methods=["POST", "GET"])
+@app.route("/autopilot/start", methods=["POST", "GET"])
+def api_autopilot_start():
+    now_ts = time.time()
+    with autopilot_lock:
+        AUTO_PILOT_STATE["active"] = True
+        AUTO_PILOT_STATE["expires_at"] = now_ts + AUTO_PILOT_DURATION_SECONDS
+    return jsonify({
+        "ok": True,
+        "active": True,
+        "remaining_seconds": AUTO_PILOT_DURATION_SECONDS
+    })
+
+@app.route("/api/autopilot/stop", methods=["POST", "GET"])
+@app.route("/autopilot/stop", methods=["POST", "GET"])
+def api_autopilot_stop():
+    with autopilot_lock:
+        AUTO_PILOT_STATE["active"] = False
+        AUTO_PILOT_STATE["expires_at"] = 0.0
+    return jsonify({
+        "ok": True,
+        "active": False,
+        "remaining_seconds": 0
+    })
+
+@app.route("/api/autopilot/status", methods=["GET"])
+@app.route("/autopilot/status", methods=["GET"])
+def api_autopilot_status():
+    active, remaining = check_autopilot_state()
+    return jsonify({
+        "ok": True,
+        "active": active,
+        "remaining_seconds": remaining
+    })
+
+# ==========================================
+# 5. مسارات API الرئيسية
 # ==========================================
 @app.route("/")
 def index():
@@ -454,13 +511,26 @@ def api_analyze():
 def api_scan():
     timeframe = str(request.args.get("timeframe", "15M")).upper()
     strategy = request.args.get("strategy", "1")
+    mode = str(request.args.get("mode", "manual")).strip().lower()
+
+    if mode == "auto":
+        active, remaining = check_autopilot_state()
+        if not active:
+            return jsonify({
+                "ok": False,
+                "auto_stopped": True,
+                "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
+            }), 200
+        target_pairs = PAIRS_22[:16]  # أهم 16 زوجاً لحماية حد الدقيقة (16 طلب/دقيقة)
+    else:
+        target_pairs = PAIRS_22
 
     confirmed = []
     upcoming = []
     scanned_count = 0
 
     with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(scan_single_pair, sym, timeframe, strategy): sym for sym in PAIRS_22}
+        futures = {executor.submit(scan_single_pair, sym, timeframe, strategy): sym for sym in target_pairs}
         for future in as_completed(futures):
             try:
                 outcome = future.result()
@@ -492,8 +562,9 @@ def api_scan():
 
     return jsonify({
         "ok": True,
+        "mode": mode,
         "scanned": scanned_count,
-        "total": len(PAIRS_22),
+        "total": len(target_pairs),
         "confirmed": confirmed,
         "upcoming": upcoming[:3]
     })
