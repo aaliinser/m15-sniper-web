@@ -7,9 +7,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request, send_from_directory
+from fastapi import FastAPI, Query
+from fastapi.responses import FileResponse, JSONResponse
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+app = FastAPI(title="M15 Sniper PRO")
 
 # ==========================================
 # 1. إعدادات مفاتيح API والتوزيع المتوازن (1600 طلب/يوم | 16 طلب/دقيقة)
@@ -426,62 +427,65 @@ def scan_single_pair(sym, timeframe, strategy):
 # ==========================================
 # 4. مسارات التحكم بالرادار التلقائي (6 ساعات)
 # ==========================================
-@app.route("/api/autopilot/start", methods=["POST", "GET"])
-@app.route("/autopilot/start", methods=["POST", "GET"])
+@app.api_route("/api/autopilot/start", methods=["GET", "POST"])
+@app.api_route("/autopilot/start", methods=["GET", "POST"])
 def api_autopilot_start():
     now_ts = time.time()
     with autopilot_lock:
         AUTO_PILOT_STATE["active"] = True
         AUTO_PILOT_STATE["expires_at"] = now_ts + AUTO_PILOT_DURATION_SECONDS
-    return jsonify({
+    return JSONResponse({
         "ok": True,
         "active": True,
         "remaining_seconds": AUTO_PILOT_DURATION_SECONDS
     })
 
-@app.route("/api/autopilot/stop", methods=["POST", "GET"])
-@app.route("/autopilot/stop", methods=["POST", "GET"])
+@app.api_route("/api/autopilot/stop", methods=["GET", "POST"])
+@app.api_route("/autopilot/stop", methods=["GET", "POST"])
 def api_autopilot_stop():
     with autopilot_lock:
         AUTO_PILOT_STATE["active"] = False
         AUTO_PILOT_STATE["expires_at"] = 0.0
-    return jsonify({
+    return JSONResponse({
         "ok": True,
         "active": False,
         "remaining_seconds": 0
     })
 
-@app.route("/api/autopilot/status", methods=["GET"])
-@app.route("/autopilot/status", methods=["GET"])
+@app.get("/api/autopilot/status")
+@app.get("/autopilot/status")
 def api_autopilot_status():
     active, remaining = check_autopilot_state()
-    return jsonify({
+    return JSONResponse({
         "ok": True,
         "active": active,
         "remaining_seconds": remaining
     })
 
 # ==========================================
-# 5. مسارات API الرئيسية
+# 5. مسارات API الرئيسية والواجهة
 # ==========================================
-@app.route("/")
+@app.get("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return FileResponse("index.html")
 
-@app.route("/api/analyze")
-@app.route("/analyze")
-def api_analyze():
-    symbol = normalize_symbol(request.args.get("symbol", "EUR/USD"))
-    timeframe = str(request.args.get("timeframe", "15M")).upper()
-    strategy = request.args.get("strategy", "1")
-    decimals = get_price_decimals(symbol)
+@app.get("/api/analyze")
+@app.get("/analyze")
+def api_analyze(
+    symbol: str = Query(default="EUR/USD"),
+    timeframe: str = Query(default="15M"),
+    strategy: str = Query(default="1")
+):
+    sym = normalize_symbol(symbol)
+    tf = str(timeframe).upper()
+    decimals = get_price_decimals(sym)
 
-    df, err = fetch_candles(symbol, timeframe)
+    df, err = fetch_candles(sym, tf)
     if err:
-        return jsonify({"ok": False, "error": err}), 200
+        return JSONResponse({"ok": False, "error": err})
 
     df = calculate_indicators(df)
-    analysis = evaluate_strategy(df, symbol, strategy, timeframe)
+    analysis = evaluate_strategy(df, sym, strategy, tf)
 
     chart_df = df.tail(90).copy()
     candles = []
@@ -497,31 +501,34 @@ def api_analyze():
             "ema200": round(float(row["ema200"]), decimals) if not pd.isna(row["ema200"]) else None,
         })
 
-    return jsonify({
+    return JSONResponse({
         "ok": True,
-        "symbol": symbol,
-        "timeframe": timeframe,
+        "symbol": sym,
+        "timeframe": tf,
         "finnhub_key": FINNHUB_API_KEY,
         "analysis": analysis,
         "candles": candles
     })
 
-@app.route("/api/scan")
-@app.route("/scan")
-def api_scan():
-    timeframe = str(request.args.get("timeframe", "15M")).upper()
-    strategy = request.args.get("strategy", "1")
-    mode = str(request.args.get("mode", "manual")).strip().lower()
+@app.get("/api/scan")
+@app.get("/scan")
+def api_scan(
+    timeframe: str = Query(default="15M"),
+    strategy: str = Query(default="1"),
+    mode: str = Query(default="manual")
+):
+    tf = str(timeframe).upper()
+    m = str(mode).strip().lower()
 
-    if mode == "auto":
-        active, remaining = check_autopilot_state()
+    if m == "auto":
+        active, _ = check_autopilot_state()
         if not active:
-            return jsonify({
+            return JSONResponse({
                 "ok": False,
                 "auto_stopped": True,
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
-            }), 200
-        target_pairs = PAIRS_22[:16]  # أهم 16 زوجاً لحماية حد الدقيقة (16 طلب/دقيقة)
+            })
+        target_pairs = PAIRS_22[:16]
     else:
         target_pairs = PAIRS_22
 
@@ -530,7 +537,7 @@ def api_scan():
     scanned_count = 0
 
     with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(scan_single_pair, sym, timeframe, strategy): sym for sym in target_pairs}
+        futures = {executor.submit(scan_single_pair, sym, tf, strategy): sym for sym in target_pairs}
         for future in as_completed(futures):
             try:
                 outcome = future.result()
@@ -560,9 +567,9 @@ def api_scan():
 
     upcoming.sort(key=lambda x: x["dist_pips"])
 
-    return jsonify({
+    return JSONResponse({
         "ok": True,
-        "mode": mode,
+        "mode": m,
         "scanned": scanned_count,
         "total": len(target_pairs),
         "confirmed": confirmed,
@@ -570,5 +577,6 @@ def api_scan():
     })
 
 if __name__ == "__main__":
+    import uvicorn
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)
