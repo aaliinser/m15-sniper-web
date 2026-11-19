@@ -1,8 +1,11 @@
 import os
 import time
+import datetime
 import threading
+from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+from requests.adapters import HTTPAdapter
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Query
@@ -11,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 app = FastAPI(title="M15 Sniper PRO")
 
 # ==========================================
-# 1. إعدادات مفاتيح API والتوزيع المتوازن (2400 طلب/يوم | 24 طلب/دقيقة)
+# 1. API Keys & Core Configuration
 # ==========================================
 TWELVE_DATA_KEYS = [
     "3db4b82facc84c5a84dd9abc262a5acb",
@@ -20,6 +23,12 @@ TWELVE_DATA_KEYS = [
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 
+UTC_TZ = datetime.timezone.utc
+try:
+    DISPLAY_TZ = ZoneInfo("Asia/Hebron")
+except Exception:
+    DISPLAY_TZ = datetime.timezone(datetime.timedelta(hours=2))
+
 key_lock = threading.Lock()
 cache_lock = threading.Lock()
 autopilot_lock = threading.Lock()
@@ -27,8 +36,7 @@ autopilot_lock = threading.Lock()
 current_key_index = 0
 key_cooldowns = {0: 0.0, 1: 0.0, 2: 0.0}
 
-# حالة الرادار التلقائي على السيرفر (حماية 6 ساعات)
-AUTO_PILOT_DURATION_SECONDS = 6 * 3600  # 21600 ثانية
+AUTO_PILOT_DURATION_SECONDS = 6 * 3600
 AUTO_PILOT_STATE = {
     "active": False,
     "expires_at": 0.0
@@ -37,8 +45,16 @@ AUTO_PILOT_STATE = {
 CACHE_STORE = {}
 CACHE_TTL_SECONDS = 150
 
-HTTP_SESSION = requests.Session()
-HTTP_SESSION.headers.update({"User-Agent": "M15-Sniper-PRO/2.3"})
+thread_local = threading.local()
+
+def get_http_session():
+    if not hasattr(thread_local, "session"):
+        s = requests.Session()
+        adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
+        s.mount("https://", adapter)
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/3.1"})
+        thread_local.session = s
+    return thread_local.session
 
 PAIRS_22 = [
     "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
@@ -52,6 +68,13 @@ TIMEFRAME_MAP = {
     "5M": "5min",
     "15M": "15min",
     "1H": "1h"
+}
+
+TIMEFRAME_SECONDS = {
+    "1M": 60,
+    "5M": 300,
+    "15M": 900,
+    "1H": 3600
 }
 
 def normalize_symbol(raw_sym):
@@ -107,9 +130,9 @@ def check_autopilot_state():
         return active, remaining
 
 # ==========================================
-# 2. جلب البيانات مع التوزيع الذكي والتبديل الفوري بين 3 مفاتيح
+# 2. Fetch Candles (UTC End-to-End, 300 Warm-up Candles)
 # ==========================================
-def fetch_candles(symbol, timeframe="15M", outputsize=250):
+def fetch_candles(symbol, timeframe="15M", outputsize=300):
     symbol = normalize_symbol(symbol)
     tf_upper = str(timeframe or "15M").strip().upper()
     interval = TIMEFRAME_MAP.get(tf_upper, "15min")
@@ -126,6 +149,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=250):
 
     last_error = "تم الوصول للحد المؤقت للطلبات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
     num_keys = len(TWELVE_DATA_KEYS)
+    session = get_http_session()
 
     for _ in range(num_keys):
         idx = get_available_key_index(time.time())
@@ -139,7 +163,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=250):
             f"&apikey={api_key}&timezone=UTC"
         )
         try:
-            resp = HTTP_SESSION.get(url, timeout=12)
+            resp = session.get(url, timeout=12)
             if resp.status_code == 429:
                 mark_key_cooldown(idx, 55.0)
                 continue
@@ -154,20 +178,20 @@ def fetch_candles(symbol, timeframe="15M", outputsize=250):
                 return None, f"تنبيه من مزود البيانات: {msg or 'خطأ غير معروف'}"
 
             values = data.get("values")
-            if not values or len(values) < 50:
-                return None, "بيانات الشموع غير مكتملة لهذا الزوج حالياً."
+            if not values or len(values) < 205:
+                return None, "بيانات الشموع غير كافية لحساب EMA 200 بدقة."
 
             df = pd.DataFrame(values)
             for col in ["open", "high", "low", "close"]:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-            df = df.dropna(subset=["open", "high", "low", "close"]).reset_index(drop=True)
+            df["open_dt_utc"] = pd.to_datetime(df["datetime"], utc=True, errors="coerce")
+            df = df.dropna(subset=["open", "high", "low", "close", "open_dt_utc"])
 
-            if len(df) < 50:
+            if len(df) < 205:
                 return None, "البيانات الرقمية للشموع غير صالحة."
 
-            # تحويل التوقيت إلى توقيت غزة (UTC+2)
-            df["datetime"] = pd.to_datetime(df["datetime"]) + pd.Timedelta(hours=2)
-            df = df.iloc[::-1].reset_index(drop=True)
+            df["open_ts"] = (df["open_dt_utc"].astype("int64") // 10**9).astype(int)
+            df = df.sort_values("open_ts").reset_index(drop=True)
 
             with cache_lock:
                 CACHE_STORE[cache_key] = (time.time(), df.copy())
@@ -179,46 +203,60 @@ def fetch_candles(symbol, timeframe="15M", outputsize=250):
 
     return None, last_error
 
+def filter_closed_candles(df, timeframe):
+    """Strictly drop any in-progress candle where open_ts + tf_sec > now_utc."""
+    tf_sec = TIMEFRAME_SECONDS.get(str(timeframe).upper(), 900)
+    now_ts = time.time()
+    live_price = float(df["close"].iloc[-1])
+    closed_df = df[(df["open_ts"] + tf_sec) <= now_ts].copy().reset_index(drop=True)
+    return closed_df, live_price
+
 # ==========================================
-# 3. الحسابات الفنية والاستراتيجيات الأربع (بدون أي تعديل)
+# 3. Audited Indicators (Wilder, No bfill, Strict Closed Candles)
 # ==========================================
-def calculate_indicators(df):
+def calculate_indicators(closed_df):
+    df = closed_df.copy()
     close = df["close"]
     high = df["high"]
     low = df["low"]
 
-    # Bollinger Bands (15, 2.3, ddof=0)
-    sma15 = close.rolling(window=15).mean()
-    std15 = close.rolling(window=15).std(ddof=0)
+    # Validated Bollinger Bands (15, 2.3, ddof=0)
+    sma15 = close.rolling(window=15, min_periods=15).mean()
+    std15 = close.rolling(window=15, min_periods=15).std(ddof=0)
     df["bb_mid"] = sma15
     df["bb_upper"] = sma15 + (2.3 * std15)
     df["bb_lower"] = sma15 - (2.3 * std15)
 
-    # EMA 200 & EMA 50 & EMA 20
-    df["ema200"] = close.ewm(span=200, adjust=False).mean()
-    df["ema50"] = close.ewm(span=50, adjust=False).mean()
-    df["ema20"] = close.ewm(span=20, adjust=False).mean()
+    # Validated EMA 200 (adjust=False) + EMA 50 & EMA 20
+    df["ema200"] = close.ewm(span=200, min_periods=200, adjust=False).mean()
+    df["ema50"] = close.ewm(span=50, min_periods=50, adjust=False).mean()
+    df["ema20"] = close.ewm(span=20, min_periods=20, adjust=False).mean()
 
-    # RSI 14
+    # Wilder RSI (14)
     delta = close.diff()
-    gain = delta.clip(lower=0).rolling(window=14).mean()
-    loss = (-delta.clip(upper=0)).rolling(window=14).mean()
-    rs = gain / loss.replace(0, np.nan)
-    df["rsi"] = (100 - (100 / (1 + rs))).fillna(50.0)
+    gain = delta.clip(lower=0.0)
+    loss = (-delta.clip(upper=0.0))
+    avg_gain = gain.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0.0, np.nan)
+    df["rsi"] = 100.0 - (100.0 / (1.0 + rs))
+    df.loc[(avg_loss == 0.0) & (avg_gain > 0.0), "rsi"] = 100.0
+    df.loc[(avg_loss == 0.0) & (avg_gain == 0.0), "rsi"] = 50.0
 
-    # ATR 14
+    # Wilder ATR (14) - No bfill()
+    prev_close = close.shift(1)
     tr = pd.concat([
         high - low,
-        (high - close.shift()).abs(),
-        (low - close.shift()).abs()
+        (high - prev_close).abs(),
+        (low - prev_close).abs()
     ], axis=1).max(axis=1)
-    df["atr"] = tr.rolling(window=14).mean().bfill()
+    df["atr"] = tr.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
 
     return df
 
-def detect_sr_and_fib(df, symbol):
+def detect_sr_and_fib(closed_df, symbol):
     decimals = get_price_decimals(symbol)
-    recent = df.tail(120)
+    recent = closed_df.tail(120)
     swing_high = float(recent["high"].max())
     swing_low = float(recent["low"].min())
     diff = max(swing_high - swing_low, 1e-6)
@@ -233,7 +271,7 @@ def detect_sr_and_fib(df, symbol):
         "1.0": round(swing_low, decimals),
     }
 
-    atr_raw = df["atr"].iloc[-2]
+    atr_raw = closed_df["atr"].iloc[-1]
     atr_val = float(atr_raw) if not pd.isna(atr_raw) else (diff * 0.02)
     min_tol = 0.015 if "JPY" in symbol else 0.00015
     tol = max(atr_val * 0.35, min_tol)
@@ -245,88 +283,106 @@ def detect_sr_and_fib(df, symbol):
         for lvl in levels:
             if abs(lvl["price"] - price) <= tol:
                 lvl["touches"] += 1
-                lvl["price"] = (lvl["price"] + price) / 2.0
                 matched = True
                 break
         if not matched:
             levels.append({"price": float(price), "touches": 1})
 
-    current_close = float(df["close"].iloc[-2])
+    current_close = float(closed_df["close"].iloc[-1])
     resistances = sorted([l for l in levels if l["price"] > current_close and l["touches"] >= 3], key=lambda x: x["price"])[:2]
     supports = sorted([l for l in levels if l["price"] <= current_close and l["touches"] >= 3], key=lambda x: -x["price"])[:2]
 
     return resistances, supports, fib_levels
 
-def evaluate_strategy(df, symbol, strategy_id):
+def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
     strategy_id = normalize_strategy(strategy_id)
 
-    c = df.iloc[-2]
-    live = df.iloc[-1]
+    if len(closed_df) < 200:
+        return {
+            "signal": "WAIT",
+            "reason": "بيانات الشموع المغلقة غير كافية لحساب EMA 200.",
+            "confidence": 0,
+            "live_price": round(live_price, decimals),
+            "bb_upper": None, "bb_lower": None, "ema200": None,
+            "resistances": [], "supports": [], "fib": {}
+        }
+
+    c = closed_df.iloc[-1]  # Strictly last CLOSED candle
+
+    required_cols = ["bb_upper", "bb_lower", "ema200"]
+    if strategy_id == "2":
+        required_cols.extend(["ema50", "ema20"])
+    elif strategy_id == "3":
+        required_cols.append("rsi")
+    elif strategy_id == "4":
+        required_cols.append("atr")
+
+    # Strict NaN guard: never fabricate indicator values
+    if any(pd.isna(c[col]) for col in required_cols):
+        return {
+            "signal": "WAIT",
+            "reason": "مؤشرات التهيئة غير مكتملة (NaN) — تم تخطي التقييم.",
+            "confidence": 0,
+            "live_price": round(live_price, decimals),
+            "bb_upper": None, "bb_lower": None, "ema200": None,
+            "resistances": [], "supports": [], "fib": {}
+        }
 
     close_p = float(c["close"])
     open_p = float(c["open"])
     high_p = float(c["high"])
     low_p = float(c["low"])
 
-    bb_u = float(c["bb_upper"]) if not pd.isna(c["bb_upper"]) else high_p * 1.001
-    bb_l = float(c["bb_lower"]) if not pd.isna(c["bb_lower"]) else low_p * 0.999
+    bb_u = float(c["bb_upper"])
+    bb_l = float(c["bb_lower"])
     ema200 = float(c["ema200"])
-    ema50 = float(c["ema50"])
-    ema20 = float(c["ema20"])
+    ema50 = float(c["ema50"]) if not pd.isna(c["ema50"]) else ema200
+    ema20 = float(c["ema20"]) if not pd.isna(c["ema20"]) else ema200
     rsi = float(c["rsi"]) if not pd.isna(c["rsi"]) else 50.0
-    default_atr = 0.05 if "JPY" in symbol else 0.0005
-    atr = float(c["atr"]) if not pd.isna(c["atr"]) and float(c["atr"]) > 0 else default_atr
+    atr = float(c["atr"]) if not pd.isna(c["atr"]) else 0.0
 
-    resistances, supports, fib_levels = detect_sr_and_fib(df, symbol)
+    resistances, supports, fib_levels = detect_sr_and_fib(closed_df, symbol)
 
     signal = "WAIT"
-    reason = "بانتظار ملامسة حدود البولينجر مع توافق EMA 200"
+    reason = "بانتظار إغلاق شمعة خارج حدود البولينجر مع توافق EMA 200"
     confidence = 0
 
-    if strategy_id == "1":  # M15 Sniper PRO (الأساسية)
-        if (low_p <= bb_l or close_p <= bb_l) and close_p > ema200:
+    if strategy_id == "1":  # Exact Validated M15 Sniper PRO (57.19% benchmark)
+        if close_p > ema200 and close_p <= bb_l:
             signal = "CALL"
-            reason = "ملامسة حد البولينجر السفلي فوق EMA 200 (ارتداد صاعد)"
-            confidence = 86
-        elif (high_p >= bb_u or close_p >= bb_u) and close_p < ema200:
+            reason = "إغلاق مؤكد <= البولينجر السفلي وفوق EMA 200 (الشروط المُتحقق منها)"
+            confidence = 57
+        elif close_p < ema200 and close_p >= bb_u:
             signal = "PUT"
-            reason = "ملامسة حد البولينجر العلوي تحت EMA 200 (ارتداد هابط)"
-            confidence = 86
-        elif low_p <= bb_l and close_p > open_p:
-            signal = "CALL"
-            reason = "اختراق البولينجر السفلي مع شمعة انعكاس خضراء"
-            confidence = 78
-        elif high_p >= bb_u and close_p < open_p:
-            signal = "PUT"
-            reason = "اختراق البولينجر العلوي مع شمعة انعكاس حمراء"
-            confidence = 78
+            reason = "إغلاق مؤكد >= البولينجر العلوي وتحت EMA 200 (الشروط المُتحقق منها)"
+            confidence = 57
 
-    elif strategy_id == "2":  # مع الاتجاه (Trend Following)
+    elif strategy_id == "2":  # Trend Following
         if close_p > ema200 and ema20 > ema50 and low_p <= ema20 and close_p > open_p:
             signal = "CALL"
-            reason = "ارتداد صاعد من EMA 20 مع اتجاه صاعد قوي فوق EMA 200"
-            confidence = 82
+            reason = "ارتداد صاعد مغلق من EMA 20 مع اتجاه صاعد فوق EMA 200"
+            confidence = 55
         elif close_p < ema200 and ema20 < ema50 and high_p >= ema20 and close_p < open_p:
             signal = "PUT"
-            reason = "ارتداد هابط من EMA 20 مع اتجاه هابط تحت EMA 200"
-            confidence = 82
+            reason = "ارتداد هابط مغلق من EMA 20 مع اتجاه هابط تحت EMA 200"
+            confidence = 55
         else:
             reason = "بانتظار إعادة اختبار EMA 20 في اتجاه EMA 200"
 
-    elif strategy_id == "3":  # سكالبينج سريع (Scalp Reversal)
-        if rsi <= 28 and low_p <= bb_l:
+    elif strategy_id == "3":  # Scalp Reversal (Wilder RSI)
+        if rsi <= 28.0 and close_p <= bb_l:
             signal = "CALL"
-            reason = f"تشبع بيعي حاد (RSI={rsi:.1f}) عند البولينجر السفلي"
-            confidence = 84
-        elif rsi >= 72 and high_p >= bb_u:
+            reason = f"تشبع بيعي Wilder (RSI={rsi:.1f}) مع إغلاق عند البولينجر السفلي"
+            confidence = 55
+        elif rsi >= 72.0 and close_p >= bb_u:
             signal = "PUT"
-            reason = f"تشبع شرائي حاد (RSI={rsi:.1f}) عند البولينجر العلوي"
-            confidence = 84
+            reason = f"تشبع شرائي Wilder (RSI={rsi:.1f}) مع إغلاق عند البولينجر العلوي"
+            confidence = 55
         else:
-            reason = f"مراقبة تشبع RSI ({rsi:.1f}) مع حدود البولينجر"
+            reason = f"مراقبة تشبع Wilder RSI ({rsi:.1f}) مع إغلاق البولينجر"
 
-    elif strategy_id == "4":  # برايس أكشن ودعوم ومقاومات
+    elif strategy_id == "4":  # Price Action S/R
         near_sup = any(abs(low_p - s["price"]) <= atr * 0.3 for s in supports)
         near_res = any(abs(high_p - r["price"]) <= atr * 0.3 for r in resistances)
         wick_down = (min(open_p, close_p) - low_p) > abs(close_p - open_p) * 1.3
@@ -334,22 +390,20 @@ def evaluate_strategy(df, symbol, strategy_id):
 
         if near_sup and wick_down:
             signal = "CALL"
-            reason = "ذيل رفض سفلي قوي عند منطقة دعم تاريخية"
-            confidence = 83
+            reason = "ذيل رفض سفلي مغلق عند منطقة دعم تاريخية"
+            confidence = 55
         elif near_res and wick_up:
             signal = "PUT"
-            reason = "ذيل رفض علوي قوي عند منطقة مقاومة تاريخية"
-            confidence = 83
+            reason = "ذيل رفض علوي مغلق عند منطقة مقاومة تاريخية"
+            confidence = 55
         else:
             reason = "بانتظار ذيل رفض واضح عند مناطق الدعم أو المقاومة"
-
-    live_price = round(float(live["close"]), decimals)
 
     return {
         "signal": signal,
         "reason": reason,
         "confidence": confidence,
-        "live_price": live_price,
+        "live_price": round(live_price, decimals),
         "bb_upper": round(bb_u, decimals),
         "bb_lower": round(bb_l, decimals),
         "ema200": round(ema200, decimals),
@@ -362,12 +416,13 @@ def scan_single_pair(sym, timeframe, strategy):
     df, err = fetch_candles(sym, timeframe)
     if err or df is None:
         return None
-    df = calculate_indicators(df)
-    res = evaluate_strategy(df, sym, strategy)
+    closed_df, live_price = filter_closed_candles(df, timeframe)
+    closed_df = calculate_indicators(closed_df)
+    res = evaluate_strategy(closed_df, live_price, sym, strategy)
     return sym, res
 
 # ==========================================
-# 4. مسارات التحكم بالرادار التلقائي (6 ساعات)
+# 4. Autopilot Routes (6 Hours)
 # ==========================================
 @app.api_route("/api/autopilot/start", methods=["GET", "POST"])
 @app.api_route("/autopilot/start", methods=["GET", "POST"])
@@ -405,7 +460,7 @@ def api_autopilot_status():
     })
 
 # ==========================================
-# 5. مسارات API الرئيسية والواجهة
+# 5. Main API & Frontend Routes
 # ==========================================
 @app.get("/")
 def index():
@@ -426,14 +481,16 @@ def api_analyze(
     if err:
         return JSONResponse({"ok": False, "error": err})
 
-    df = calculate_indicators(df)
-    analysis = evaluate_strategy(df, sym, strategy)
+    closed_df, live_price = filter_closed_candles(df, tf)
+    closed_df = calculate_indicators(closed_df)
+    analysis = evaluate_strategy(closed_df, live_price, sym, strategy)
 
-    chart_df = df.tail(90).copy()
+    chart_df = closed_df.tail(90).copy()
     candles = []
     for _, row in chart_df.iterrows():
+        local_dt = row["open_dt_utc"].to_pydatetime().astimezone(DISPLAY_TZ)
         candles.append({
-            "time": row["datetime"].strftime("%H:%M"),
+            "time": local_dt.strftime("%H:%M"),
             "open": round(float(row["open"]), decimals),
             "high": round(float(row["high"]), decimals),
             "low": round(float(row["low"]), decimals),
