@@ -687,6 +687,7 @@
       let lastChartData = null;
       let finnhubSocket = null;
       let finnhubKey = "";
+      let lastAutoScanStamp = "";
 
       const toggles = { ema: true, bb: true, fib: true, sr: true, tv: false };
 
@@ -1028,24 +1029,26 @@
 
       async function runManualScan() {
         const box = document.getElementById("scanResults");
-        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح السوق (${currentTimeframe})...</div>`;
+        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح 22/22 زوجاً (${currentTimeframe})...</div>`;
         try {
           const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
           const data = await resp.json();
-          renderScanResults(data);
+          renderScanResults(data, false);
         } catch (_) {
           box.innerHTML = `<div style="color:var(--red);text-align:center;">⚠️ تعذر إتمام المسح حالياً.</div>`;
         }
       }
 
-      function renderScanResults(data) {
+      function renderScanResults(data, isAuto = false) {
         const box = document.getElementById("scanResults");
         if (!data.ok) {
           box.innerHTML = `<div style="color:var(--red);text-align:center;">${data.error || "خطأ في المسح"}</div>`;
           return;
         }
-        let html = `<div style="color:var(--text-muted);margin-bottom:8px;">تم فحص <b>${data.scanned}/${data.total}</b> زوجاً</div>`;
+        const nowTime = new Date().toLocaleTimeString("en-GB", { hour12: false });
+        const modeBadge = isAuto ? `رادار تلقائي — آخر فحص: <b>${nowTime}</b>` : `فحص يدوي — <b>${nowTime}</b>`;
+        let html = `<div style="color:var(--text-muted);margin-bottom:8px;line-height:1.5;">${modeBadge}<br>تم فحص <b>${data.scanned}/${data.total}</b> زوجاً</div>`;
         if (data.confirmed && data.confirmed.length > 0) {
           html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن:</div>`;
           data.confirmed.forEach(c => {
@@ -1055,7 +1058,7 @@
             </div>`;
           });
         } else {
-          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه اللحظة.</div>`;
+          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه الشمعة.</div>`;
         }
         box.innerHTML = html;
         box.querySelectorAll(".scan-item").forEach(el => {
@@ -1119,7 +1122,7 @@
       let isAutoActive = false;
       let remainingSec = 0;
       let apTickInterval = null;
-      let lastScannedMinuteKey = "";
+      let lastScannedCandleKey = "";
       let networkFailCount = 0;
       let isAutoScanning = false;
 
@@ -1142,7 +1145,9 @@
         if (isAutoActive) {
           apBtn.classList.add("active");
           apBtn.textContent = "🟢 الرادار التلقائي: مفعّل";
-          apStateText.textContent = "يفحص 22/22 زوجاً عند إغلاق كل شمعة";
+          apStateText.textContent = lastAutoScanStamp
+            ? `آخر فحص: ${lastAutoScanStamp} (22/22)`
+            : "يفحص 22/22 زوجاً عند إغلاق كل شمعة";
           apTimerEl.textContent = `متبقي: ${formatApTime(remainingSec)}`;
         } else {
           apBtn.classList.remove("active");
@@ -1164,6 +1169,8 @@
       async function runAutoScan() {
         if (!isAutoActive || isAutoScanning) return;
         isAutoScanning = true;
+        document.getElementById("scanResults").innerHTML =
+          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe} — 22/22)...</div>`;
         try {
           const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
@@ -1176,7 +1183,9 @@
             return;
           }
 
-          renderScanResults(data);
+          lastAutoScanStamp = new Date().toLocaleTimeString("en-GB", { hour12: false });
+          renderApUI();
+          renderScanResults(data, true);
 
           if (data.ok && Array.isArray(data.confirmed) && data.confirmed.length > 0) {
             playAlertBeep();
@@ -1202,6 +1211,21 @@
         }
       }
 
+      function checkCandleCloseAndScan() {
+        if (!isAutoActive) return;
+        const now = new Date();
+        const stepMin = currentTimeframe === "1M" ? 1 : currentTimeframe === "5M" ? 5 : currentTimeframe === "1H" ? 60 : 15;
+        const m = now.getMinutes();
+        const s = now.getSeconds();
+        const bucketMin = m - (m % stepMin);
+        const candleKey = `${currentTimeframe}:${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}:${bucketMin}`;
+
+        if (m % stepMin === 0 && s >= 3 && s <= 50 && lastScannedCandleKey !== candleKey) {
+          lastScannedCandleKey = candleKey;
+          runAutoScan();
+        }
+      }
+
       function startApLoop() {
         if (apTickInterval) clearInterval(apTickInterval);
         apTickInterval = setInterval(() => {
@@ -1212,19 +1236,15 @@
             return;
           }
           renderApUI();
-
-          const now = new Date();
-          const stepMin = currentTimeframe === "1M" ? 1 : currentTimeframe === "5M" ? 5 : currentTimeframe === "1H" ? 60 : 15;
-          const m = now.getMinutes();
-          const s = now.getSeconds();
-          const minuteKey = `${now.getHours()}:${m}`;
-
-          if (m % stepMin === 0 && s >= 4 && s <= 12 && lastScannedMinuteKey !== minuteKey) {
-            lastScannedMinuteKey = minuteKey;
-            runAutoScan();
-          }
+          checkCandleCloseAndScan();
         }, 1000);
       }
+
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && isAutoActive) {
+          checkCandleCloseAndScan();
+        }
+      });
 
       apBtn.addEventListener("click", async () => {
         if (isAutoActive) {
@@ -1239,7 +1259,7 @@
               networkFailCount = 0;
               renderApUI();
               startApLoop();
-              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص 22/22 زوجاً تلقائياً).", "#10b981");
+              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص 22/22 زوجاً تلقائياً عند إغلاق كل شمعة).", "#10b981");
             }
           } catch (_) {
             showApToast("⚠️ تعذر الاتصال بالسيرفر لتفعيل الرادار.", "#ef4444");
