@@ -3,1040 +3,1356 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>M15 Sniper PRO | منصة التداول السوداء الاحترافية</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <title>M15 Sniper PRO | منصة التداول الكمية الاحترافية</title>
   <style>
-    body { background-color: #05070a; color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
-    .terminal-card { background-color: #0a0e17; border: 1px solid #182032; }
-    .terminal-sub { background-color: #060910; border: 1px solid #161e2e; }
+    :root {
+      --bg-main: #060913;
+      --bg-panel: #0d1321;
+      --bg-card: #131b2e;
+      --bg-input: #0a0f1c;
+      --border: #1e293b;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --gold: #f59e0b;
+      --gold-hover: #d97706;
+      --green: #10b981;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --pink: #ec4899;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* الشريط العلوي */
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 18px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--gold);
+    }
+
+    .brand span.badge {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--gold);
+    }
+
+    .sessions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .session-pill {
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .session-pill.open {
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #a7f3d0;
+    }
+
+    .session-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #475569;
+    }
+
+    .session-pill.open .session-dot {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    .clock-box {
+      font-family: monospace;
+      font-size: 13px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 8px;
+      color: #e2e8f0;
+    }
+
+    /* التخطيط الرئيسي */
+    .layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 14px;
+      padding: 14px;
+      max-width: 1650px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1050px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    /* التبويبات الجانبية */
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 14px;
+      background: var(--bg-input);
+      padding: 5px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 6px;
+      border-radius: 7px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--gold);
+      color: #090d16;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* عناصر التحكم */
+    .active-pair-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+
+    .pair-badge {
+      font-family: monospace;
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+      background: var(--bg-input);
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+      color: #fff;
+    }
+
+    .btn-gold { background: var(--gold); color: #090d16; }
+    .btn-gold:hover { background: var(--gold-hover); }
+    .btn-dark { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); }
+    .btn-dark:hover { border-color: var(--gold); }
+    .btn-green { background: var(--green); color: #052e16; }
+    .btn-red { background: var(--red); color: #fff; }
+
+    .form-group { margin-bottom: 10px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    select, input[type="number"] {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 9px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    select:focus, input:focus { border-color: var(--gold); }
+
+    .tf-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .tf-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .tf-btn.active {
+      background: var(--gold);
+      color: #090d16;
+      border-color: var(--gold);
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .countdown-box {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+
+    .countdown-val {
+      font-family: monospace;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    /* بطاقة الإشارة */
+    .signal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .live-price-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .live-price-val {
+      font-family: monospace;
+      font-size: 16px;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    .signal-box {
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      background: #1a233a;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+
+    .signal-box.CALL {
+      background: rgba(16, 185, 129, 0.18);
+      border: 1px solid var(--green);
+      color: #34d399;
+    }
+
+    .signal-box.PUT {
+      background: rgba(239, 68, 68, 0.18);
+      border: 1px solid var(--red);
+      color: #f87171;
+    }
+
+    .signal-reason {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* بطاقة التنبؤ الزمني */
+    .eta-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+
+    .eta-title {
+      color: var(--gold);
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .eta-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      color: #cbd5e1;
+    }
+
+    /* نتائج المسح */
+    .scan-results {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .scan-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 8px;
+      border-radius: 7px;
+      background: var(--bg-card);
+      margin-bottom: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .scan-item:hover { border-color: var(--gold); }
+
+    /* منطقة الشارت */
+    .chart-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .chart-title {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: monospace;
+      color: #fff;
+    }
+
+    .indicator-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .ind-btn {
+      padding: 5px 10px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-muted);
+    }
+
+    .ind-btn.active[data-ind="ema"] { border-color: var(--gold); color: var(--gold); }
+    .ind-btn.active[data-ind="bb"] { border-color: var(--purple); color: #c4b5fd; }
+    .ind-btn.active[data-ind="fib"] { border-color: var(--pink); color: #f9a8d4; }
+    .ind-btn.active[data-ind="sr"] { border-color: var(--blue); color: #93c5fd; }
+    .ind-btn.active[data-ind="tv"] { background: #1e3a8a; border-color: #60a5fa; color: #fff; }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 540px;
+      background: #050811;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #candleCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #tvContainer {
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+
+    /* حاسبة رأس المال وقراءة السوق */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .stat-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .stat-num { font-size: 16px; font-weight: 800; font-family: monospace; color: #fff; }
+
+    .levels-list {
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .level-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-family: monospace;
+    }
+
+    /* وحدة الرادار التلقائي (6 ساعات) */
+    #ap-radar-bar {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      z-index: 9999;
+      background: #0d1321;
+      border: 1px solid #26324d;
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      color: #e2e8f0;
+    }
+
+    #ap-toggle-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      background: #1e293b;
+      color: #94a3b8;
+    }
+
+    #ap-toggle-btn.active {
+      background: var(--green);
+      color: #052e16;
+    }
+
+    #ap-status-box {
+      display: flex;
+      flex-direction: column;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    #ap-timer {
+      font-family: monospace;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    #ap-toast {
+      position: fixed;
+      bottom: 78px;
+      left: 16px;
+      z-index: 9999;
+      background: #111827;
+      border: 1px solid var(--green);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: #f8fafc;
+      font-size: 13px;
+      max-width: 340px;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    }
   </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body>
 
   <!-- الشريط العلوي -->
-  <header class="border-b border-slate-900 bg-[#070a11] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-    <div class="flex items-center gap-3">
-      <div id="wsDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></div>
-      <h1 class="text-base sm:text-lg font-black tracking-wider text-amber-400">
-        M15 SNIPER <span class="text-white">PRO</span>
-        <span class="text-[11px] text-slate-400 font-normal hidden sm:inline">| تحليل لحظي + تنبؤ زمني كمي</span>
-      </h1>
+  <header class="topbar">
+    <div class="brand">
+      🎯 M15 SNIPER PRO <span class="badge">QUANT TERMINAL</span>
     </div>
-
-    <div id="sessionsBar" class="flex flex-wrap items-center gap-1.5 text-[11px]"></div>
-
-    <div class="flex items-center gap-2 text-xs">
-      <button id="soundToggleBtn" type="button" onclick="toggleSound()" class="px-2.5 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 font-semibold transition">
-        🔊 الصوت: مفعّل
-      </button>
-      <span id="wsStatus" class="px-2.5 py-1 rounded bg-slate-900 text-amber-300 border border-slate-800">جاري الربط...</span>
-      <span id="gazaClock" class="bg-slate-900 px-2.5 py-1 rounded text-slate-300 border border-slate-800 font-mono">--:--:--</span>
+    <div class="sessions-bar" id="sessionsBar">
+      <div class="session-pill" id="sess-sydney"><span class="session-dot"></span> سيدني</div>
+      <div class="session-pill" id="sess-tokyo"><span class="session-dot"></span> طوكيو</div>
+      <div class="session-pill" id="sess-london"><span class="session-dot"></span> لندن</div>
+      <div class="session-pill" id="sess-ny"><span class="session-dot"></span> نيويورك</div>
     </div>
+    <div class="clock-box" id="gazaClock">توقيت غزة (UTC+2): --:--:--</div>
   </header>
 
   <!-- المحتوى الرئيسي -->
-  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 p-3">
+  <main class="layout">
 
-    <!-- لوحة التحكم الجانبية (يمين) -->
-    <section class="lg:col-span-4 terminal-card rounded-xl p-4 flex flex-col justify-between gap-3">
-      <div class="space-y-3">
-
-        <!-- تبويبات التنقل -->
-        <div class="grid grid-cols-3 gap-1.5 bg-[#05070a] p-1 rounded-lg border border-slate-900 text-xs font-bold">
-          <button type="button" onclick="switchSideTab('signals')" id="tabBtn-signals" class="py-1.5 rounded-md bg-amber-500 text-slate-950 transition">
-            🎯 مركز الإشارات
-          </button>
-          <button type="button" onclick="switchSideTab('capital')" id="tabBtn-capital" class="py-1.5 rounded-md text-slate-400 hover:text-white transition">
-            💰 رأس المال
-          </button>
-          <button type="button" onclick="switchSideTab('technical')" id="tabBtn-technical" class="py-1.5 rounded-md text-slate-400 hover:text-white transition">
-            📊 قراءة السوق
-          </button>
-        </div>
-
-        <!-- التبويب 1: مركز الإشارات والماسح الذكي -->
-        <div id="tabContent-signals" class="space-y-2.5">
-
-          <!-- مربع النسخ السريع -->
-          <div class="terminal-sub rounded-xl p-2 flex items-center justify-between gap-2 border-amber-500/30">
-            <div class="flex items-center gap-2">
-              <span class="text-[11px] text-slate-400">الزوج النشط:</span>
-              <input
-                id="copyPairInput"
-                type="text"
-                readonly
-                value="EUR/USD"
-                onclick="copyActivePair()"
-                title="اضغط للنسخ السريع"
-                class="w-28 bg-black border border-slate-800 rounded-lg px-2 py-1 text-sm font-mono font-black text-amber-400 text-center cursor-pointer focus:outline-none select-all"
-              />
-            </div>
-            <button
-              id="copyPairBtn"
-              type="button"
-              onclick="copyActivePair()"
-              class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition shrink-0"
-            >
-              📋 نسخ
-            </button>
-          </div>
-
-          <!-- اختيار الزوج والاستراتيجية -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[11px] text-slate-400 mb-1">زوج العملات (22 زوجاً)</label>
-              <select id="pairSelect" class="w-full bg-black border border-slate-800 rounded-lg px-2.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-400"></select>
-            </div>
-            <div>
-              <label class="block text-[11px] text-slate-400 mb-1">الاستراتيجية المعتمدة</label>
-              <select id="strategySelect" class="w-full bg-black border border-slate-800 rounded-lg px-2.5 py-2 text-xs font-bold text-amber-300 focus:outline-none focus:border-amber-400">
-                <option value="sniper_m15">1. M15 Sniper PRO (الأساسية)</option>
-                <option value="trend">2. مع الاتجاه (Trend)</option>
-                <option value="scalp">3. سكالبينج سريع (Scalp)</option>
-                <option value="price_action">4. الارتداد والبرايس أكشن</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- الإطار الزمني -->
-          <div>
-            <label class="block text-[11px] text-slate-400 mb-1">الإطار الزمني (Timeframe)</label>
-            <div class="grid grid-cols-4 gap-1.5" id="tfButtons">
-              <button data-tf="1m" class="tf-btn bg-black hover:bg-slate-900 border border-slate-800 py-1.5 rounded-lg text-xs font-bold">1M</button>
-              <button data-tf="5m" class="tf-btn bg-black hover:bg-slate-900 border border-slate-800 py-1.5 rounded-lg text-xs font-bold">5M</button>
-              <button data-tf="15m" class="tf-btn bg-amber-500 text-slate-950 border border-amber-400 py-1.5 rounded-lg text-xs font-black">15M</button>
-              <button data-tf="1h" class="tf-btn bg-black hover:bg-slate-900 border border-slate-800 py-1.5 rounded-lg text-xs font-bold">1H</button>
-            </div>
-          </div>
-
-          <!-- أزرار الفحص والمسح -->
-          <div class="grid grid-cols-2 gap-2">
-            <button id="analyzeBtn" class="bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 font-bold py-2 px-2 rounded-xl text-xs transition">
-              🎯 فحص الزوج الحالي
-            </button>
-            <button id="scanAllBtn" class="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black py-2 px-2 rounded-xl text-xs shadow-lg transition">
-              🔍 مسح 22/22 زوجاً
-            </button>
-          </div>
-
-          <!-- صندوق نتائج ماسح السوق -->
-          <div id="scannerBox" class="hidden rounded-xl p-3 border border-amber-500/30 bg-black/90 space-y-2">
-            <div class="flex items-center justify-between border-b border-slate-900 pb-1">
-              <span class="text-xs font-bold text-amber-400">📡 نتائج الماسح + التوقيت المتوقع</span>
-              <span id="scanMeta" class="text-[10px] text-slate-400">--:--</span>
-            </div>
-            <div id="scanResultsList" class="space-y-1.5 text-xs"></div>
-          </div>
-
-          <!-- عداد إغلاق الشمعة -->
-          <div id="countdownBox" class="flex items-center justify-between bg-black px-3 py-2 rounded-lg border border-slate-900 transition">
-            <span class="text-xs text-slate-400">⏳ المتبقي لإغلاق الشمعة:</span>
-            <span id="candleCountdown" class="font-mono text-sm font-black text-amber-400">--:--</span>
-          </div>
-
-          <!-- بطاقة التنبؤ المستقبلي الذكي -->
-          <div id="predictiveCard" class="hidden rounded-xl p-3 border border-indigo-500/40 bg-indigo-950/20 space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold text-indigo-300">🔮 التنبؤ الزمني الذكي (استعداد)</span>
-              <span id="predConfidenceBadge" class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200 font-mono text-[11px] font-black">ثقة --%</span>
-            </div>
-            <div id="predMainText" class="text-xs font-extrabold text-white"></div>
-            <div id="predSubText" class="text-[11px] text-slate-400"></div>
-          </div>
-
-          <!-- تنبيه التلامس اللحظي الفوري -->
-          <div id="liveTickAlertBox" class="hidden rounded-lg px-3 py-2 border text-xs font-bold text-center animate-pulse"></div>
-
-          <!-- بطاقة الإشارة المؤكدة -->
-          <div id="signalBox" class="rounded-xl p-3.5 border border-slate-800 bg-black space-y-2 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-slate-400">السعر اللحظي المباشر</span>
-              <span id="livePriceBadge" class="text-base font-mono font-black text-emerald-400">--.-----</span>
-            </div>
-            <div id="signalDirection" class="text-lg font-black text-center py-2 rounded-lg bg-slate-900 text-slate-300">
-              بانتظار الفحص...
-            </div>
-            <p id="signalReason" class="text-[11px] text-slate-400 leading-relaxed text-center">
-              جاري تحميل بيانات الشارت وربط البث اللحظي...
-            </p>
-          </div>
-        </div>
-
-        <!-- التبويب 2: حاسبة إدارة رأس المال -->
-        <div id="tabContent-capital" class="hidden space-y-3">
-          <div class="terminal-sub rounded-xl p-3 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-amber-400">💰 إدارة رأس المال (بدون مضاعفة)</span>
-              <button type="button" onclick="resetCapitalTracker()" class="text-[10px] text-rose-400 hover:underline">تصفير الجلسة</button>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <label class="block text-[10px] text-slate-400 mb-1">رأس المال ($)</label>
-                <input id="capInitial" type="number" value="100" min="1" onchange="updateCapitalDisplay()" class="w-full bg-black border border-slate-800 rounded px-2 py-1.5 text-white font-mono text-center" />
-              </div>
-              <div>
-                <label class="block text-[10px] text-slate-400 mb-1">قيمة الصفقة ($)</label>
-                <input id="capTradeAmount" type="number" value="5" min="1" class="w-full bg-black border border-slate-800 rounded px-2 py-1.5 text-white font-mono text-center" />
-              </div>
-              <div>
-                <label class="block text-[10px] text-slate-400 mb-1">العائد (%)</label>
-                <input id="capPayout" type="number" value="88" min="50" max="100" class="w-full bg-black border border-slate-800 rounded px-2 py-1.5 text-white font-mono text-center" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <button type="button" onclick="recordTradeResult(true)" class="py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition">
-                ✅ تسجيل صفقة رابحة
-              </button>
-              <button type="button" onclick="recordTradeResult(false)" class="py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition">
-                ❌ تسجيل صفقة خاسرة
-              </button>
-            </div>
-
-            <div id="disciplineWarning" class="hidden rounded-lg p-2 bg-rose-950/70 border border-rose-500 text-rose-300 text-[11px] font-bold text-center">
-              ⚠️ تنبيه انضباط: سجلت 3 خسائر متتالية! توقف عن التداول الآن لحماية رأس مالك.
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 pt-1 text-xs">
-              <div class="bg-black p-2 rounded border border-slate-900 text-center">
-                <div class="text-[10px] text-slate-400">الرصيد الحالي</div>
-                <div id="capCurrentBalance" class="font-mono font-black text-sm text-emerald-400">$100.00</div>
-              </div>
-              <div class="bg-black p-2 rounded border border-slate-900 text-center">
-                <div class="text-[10px] text-slate-400">صافي الربح / الخسارة</div>
-                <div id="capNetProfit" class="font-mono font-black text-sm text-slate-200">$0.00</div>
-              </div>
-              <div class="bg-black p-2 rounded border border-slate-900 text-center">
-                <div class="text-[10px] text-slate-400">الصفقات (ربح / خسارة)</div>
-                <div id="capWinLossCount" class="font-mono font-bold text-slate-200">0W - 0L</div>
-              </div>
-              <div class="bg-black p-2 rounded border border-slate-900 text-center">
-                <div class="text-[10px] text-slate-400">نسبة النجاح الفعلية</div>
-                <div id="capWinRate" class="font-mono font-black text-amber-400">0.0%</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- التبويب 3: قراءة المؤشرات المساعدة -->
-        <div id="tabContent-technical" class="hidden space-y-2.5">
-          <div class="terminal-sub rounded-xl p-3 space-y-2 text-xs">
-            <h3 class="font-bold text-amber-400 border-b border-slate-900 pb-1.5">📊 تحليل المؤشرات المساعدة للزوج الحالي</h3>
-            <div class="flex justify-between py-1 border-b border-slate-900/60">
-              <span class="text-slate-400">هيكل السوق العام:</span>
-              <span id="techStructure" class="font-bold text-white">--</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-slate-900/60">
-              <span class="text-slate-400">مؤشر القوة النسبية RSI(14):</span>
-              <span id="techRsi" class="font-mono font-bold text-amber-300">--</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-slate-900/60">
-              <span class="text-slate-400">زخم الماكد MACD:</span>
-              <span id="techMacd" class="font-bold text-sky-300">--</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-slate-900/60">
-              <span class="text-slate-400">خط الاتجاه EMA 200:</span>
-              <span id="techEma200" class="font-mono text-amber-400">--</span>
-            </div>
-            <div class="flex justify-between py-1">
-              <span class="text-slate-400">حدود البولينجر (15, 2.3):</span>
-              <span id="techBB" class="font-mono text-purple-300">-- / --</span>
-            </div>
-          </div>
-        </div>
-
+    <!-- اللوحة الجانبية اليمنى -->
+    <aside class="panel">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="signals">🎯 مركز الإشارات</button>
+        <button class="tab-btn" data-tab="capital">💰 رأس المال</button>
+        <button class="tab-btn" data-tab="market">📊 قراءة السوق</button>
       </div>
 
-      <!-- جدول مستويات الدعم والمقاومة -->
-      <div class="space-y-1.5 border-t border-slate-900 pt-2.5">
-        <h3 class="text-[11px] font-bold text-slate-400">🛡️ أقوى مستويات الدعم والمقاومة (عدد اللمسات)</h3>
-        <div id="srList" class="space-y-1 text-xs"></div>
+      <!-- تبويب 1: مركز الإشارات -->
+      <div id="tab-signals" class="tab-content active">
+        <div class="active-pair-row">
+          <span style="font-size:12px;color:var(--text-muted)">الزوج النشط:</span>
+          <span class="pair-badge" id="activePairDisplay">EUR/USD</span>
+          <button class="btn btn-gold" id="copyPairBtn" style="padding:6px 12px;font-size:12px;">📋 نسخ</button>
+        </div>
+
+        <div class="form-group">
+          <label for="pairSelect">زوج العملات (22 زوجاً)</label>
+          <select id="pairSelect"></select>
+        </div>
+
+        <div class="form-group">
+          <label for="strategySelect">الاستراتيجية المعتمدة</label>
+          <select id="strategySelect">
+            <option value="1">1. M15 Sniper PRO (الأساسية)</option>
+            <option value="2">2. مع الاتجاه (Trend Following)</option>
+            <option value="3">3. سكالبينج سريع (Scalp Reversal)</option>
+            <option value="4">4. الارتداد والبرايس أكشن (S/R)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>الإطار الزمني (Timeframe)</label>
+          <div class="tf-grid">
+            <button class="tf-btn" data-tf="1M">1M</button>
+            <button class="tf-btn" data-tf="5M">5M</button>
+            <button class="tf-btn active" data-tf="15M">15M</button>
+            <button class="tf-btn" data-tf="1H">1H</button>
+          </div>
+        </div>
+
+        <div class="action-grid">
+          <button class="btn btn-dark" id="analyzeBtn">🎯 فحص الزوج الحالي</button>
+          <button class="btn btn-gold" id="scanBtn">🔍 مسح 22/22 زوجاً</button>
+        </div>
+
+        <div class="countdown-box">
+          <span>⏳ المتبقي لإغلاق الشمعة:</span>
+          <span class="countdown-val" id="candleCountdown">--:--</span>
+        </div>
+
+        <!-- بطاقة الإشارة -->
+        <div class="signal-card">
+          <div class="live-price-row">
+            <span>السعر اللحظي المباشر</span>
+            <span class="live-price-val" id="livePriceVal">-----.--</span>
+          </div>
+          <div class="signal-box" id="signalBox">بانتظار الفحص...</div>
+          <div class="signal-reason" id="signalReason">اضغط على فحص الزوج الحالي أو مسح السوق للبدء.</div>
+        </div>
+
+        <!-- بطاقة التنبؤ الزمني -->
+        <div class="eta-card">
+          <div class="eta-title">
+            <span>⏱️ التنبؤ الزمني الذكي (ETA)</span>
+            <span id="etaConf">--%</span>
+          </div>
+          <div class="eta-row"><span>الاتجاه المتوقع:</span><b id="etaDir">--</b></div>
+          <div class="eta-row"><span>السعر المستهدف:</span><b id="etaTarget" style="font-family:monospace">--</b></div>
+          <div class="eta-row"><span>المسافة / التوقيت:</span><b id="etaTime">--</b></div>
+          <div class="eta-row"><span>التوافق الفني:</span><span id="etaConfluence" style="color:var(--text-muted)">--</span></div>
+        </div>
+
+        <!-- نتائج المسح -->
+        <div class="scan-results" id="scanResults">
+          <div style="color:var(--text-muted);text-align:center;">نتائج المسح الشامل ستظهر هنا...</div>
+        </div>
+      </div>
+
+      <!-- تبويب 2: إدارة رأس المال (بدون مضاعفة) -->
+      <div id="tab-capital" class="tab-content">
+        <div class="form-group">
+          <label>رأس المال الحالي ($)</label>
+          <input type="number" id="capBalance" value="100" min="1" />
+        </div>
+        <div class="form-group">
+          <label>نسبة المخاطرة الثابتة لكل صفقة (%) — بدون مضاعفة</label>
+          <input type="number" id="capRisk" value="2" min="0.5" max="10" step="0.5" />
+        </div>
+        <div class="form-group">
+          <label>نسبة العائد في Quotex (%)</label>
+          <input type="number" id="capPayout" value="85" min="50" max="98" />
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-label">قيمة الصفقة الثابتة</div>
+            <div class="stat-num" id="calcStake" style="color:var(--gold)">$2.00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">الربح المتوقع للصفقة</div>
+            <div class="stat-num" id="calcProfit" style="color:var(--green)">+$1.70</div>
+          </div>
+        </div>
+
+        <div class="action-grid" style="margin-top:12px;">
+          <button class="btn btn-green" id="addWinBtn">✅ تسجيل ربح</button>
+          <button class="btn btn-red" id="addLossBtn">❌ تسجيل خسارة</button>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-label">صفقات الجلسة (ربح / خسارة)</div>
+            <div class="stat-num" id="sessionWL">0 / 0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">صافي ربح الجلسة</div>
+            <div class="stat-num" id="sessionNet">$0.00</div>
+          </div>
+        </div>
+        <button class="btn btn-dark" id="resetSessionBtn" style="width:100%;margin-top:10px;">🔄 تصفير الجلسة</button>
+      </div>
+
+      <!-- تبويب 3: قراءة السوق والمستويات -->
+      <div id="tab-market" class="tab-content">
+        <div style="font-size:12px;color:var(--gold);font-weight:700;margin-bottom:8px;">مستويات المؤشرات الحالية</div>
+        <div class="levels-list" id="marketLevelsList">
+          <div class="level-row"><span>BB Upper</span><span id="lvlBbUp">--</span></div>
+          <div class="level-row"><span>BB Lower</span><span id="lvlBbLow">--</span></div>
+          <div class="level-row"><span>EMA 200</span><span id="lvlEma200">--</span></div>
+        </div>
+
+        <div style="font-size:12px;color:var(--pink);font-weight:700;margin:12px 0 8px;">مستويات فيبوناتشي التلقائية</div>
+        <div class="levels-list" id="fibLevelsList">
+          <div style="color:var(--text-muted);font-size:12px;">افحص زوجاً لعرض مستويات فيبوناتشي.</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- منطقة الشارت اليسرى -->
+    <section class="panel">
+      <div class="chart-header">
+        <div class="chart-title" id="chartTitle">EUR/USD — 15M</div>
+        <div class="indicator-toggles">
+          <button class="ind-btn active" data-ind="ema">EMA 200</button>
+          <button class="ind-btn active" data-ind="bb">Bollinger</button>
+          <button class="ind-btn active" data-ind="fib">فيبوناتشي</button>
+          <button class="ind-btn active" data-ind="sr">الدعم/المقاومة</button>
+          <button class="ind-btn" data-ind="tv" id="tvToggleBtn">📺 شارت TradingView</button>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="candleCanvas"></canvas>
+        <div id="tvContainer"></div>
       </div>
     </section>
 
-    <!-- منطقة الشارت التفاعلي (يسار) -->
-    <section class="lg:col-span-8 terminal-card rounded-xl p-3.5 flex flex-col gap-2.5">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
-        <div class="flex items-center gap-2">
-          <span id="chartTitle" class="font-black text-base text-white">EUR/USD — 15M</span>
-          <span id="loadingSpinner" class="hidden text-xs text-amber-400 animate-pulse">جاري التحديث...</span>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <button id="toggleChartMode" class="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold hover:bg-indigo-500/30 transition">
-            📺 شارت TradingView
-          </button>
-          <button id="toggleMarkers" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
-            الأسهم (0)
-          </button>
-          <button id="toggleSR" class="px-2.5 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold">
-            الدعم/المقاومة
-          </button>
-          <button id="toggleFib" class="px-2.5 py-1.5 rounded-lg bg-pink-500/20 text-pink-300 border border-pink-500/40 font-semibold">
-            فيبوناتشي
-          </button>
-          <button id="toggleBB" class="px-2.5 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40 font-semibold">
-            Bollinger
-          </button>
-          <button id="toggleEMA" class="px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
-            EMA 200
-          </button>
-        </div>
-      </div>
-
-      <div id="chartContainer" class="w-full flex-1 min-h-[480px] rounded-lg overflow-hidden bg-black"></div>
-      <div id="tvWidgetContainer" class="hidden w-full flex-1 min-h-[480px] rounded-lg overflow-hidden bg-black"></div>
-    </section>
   </main>
 
+  <!-- وحدة الرادار التلقائي المحمي (6 ساعات) -->
+  <div id="ap-toast"></div>
+  <div id="ap-radar-bar">
+    <button id="ap-toggle-btn" type="button">🤖 الرادار التلقائي: متوقف</button>
+    <div id="ap-status-box">
+      <span id="ap-state-text">إيقاف تلقائي بعد 6 ساعات</span>
+      <span id="ap-timer">00:00:00</span>
+    </div>
+  </div>
+
+  <script src="https://s3.tradingview.com/tv.js"></script>
   <script>
-    const FINNHUB_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0";
-    let currentTf = "15m";
-    let currentStrategy = "sniper_m15";
-    let showSR = true, showFib = false, showBB = true, showEMA = true, showMarkers = true;
-    let isTvMode = false;
-    let soundEnabled = true;
-    let audioCtx = null;
-    let srPriceLines = [];
-    let fibPriceLines = [];
-    let lastData = null;
-    let currentCandle = null;
-    let ws = null;
-    let subscribedSymbol = null;
-    let lastLiveAlertTime = 0;
-
-    let tradeWins = 0;
-    let tradeLosses = 0;
-    let consecutiveLosses = 0;
-    let netPnL = 0;
-
-    function switchSideTab(tabName) {
-      ["signals", "capital", "technical"].forEach(t => {
-        const content = document.getElementById(`tabContent-${t}`);
-        const btn = document.getElementById(`tabBtn-${t}`);
-        if (t === tabName) {
-          content.classList.remove("hidden");
-          btn.className = "py-1.5 rounded-md bg-amber-500 text-slate-950 transition";
-        } else {
-          content.classList.add("hidden");
-          btn.className = "py-1.5 rounded-md text-slate-400 hover:text-white transition";
-        }
-      });
-    }
-
-    function updateCapitalDisplay() {
-      const initCap = parseFloat(document.getElementById("capInitial").value) || 100;
-      const currentBal = initCap + netPnL;
-      const totalTrades = tradeWins + tradeLosses;
-      const winRate = totalTrades > 0 ? ((tradeWins / totalTrades) * 100).toFixed(1) : "0.0";
-
-      const balEl = document.getElementById("capCurrentBalance");
-      balEl.textContent = `$${currentBal.toFixed(2)}`;
-      balEl.className = `font-mono font-black text-sm ${currentBal >= initCap ? "text-emerald-400" : "text-rose-400"}`;
-
-      const pnlEl = document.getElementById("capNetProfit");
-      pnlEl.textContent = `${netPnL >= 0 ? "+" : ""}$${netPnL.toFixed(2)}`;
-      pnlEl.className = `font-mono font-black text-sm ${netPnL >= 0 ? "text-emerald-400" : "text-rose-400"}`;
-
-      document.getElementById("capWinLossCount").textContent = `${tradeWins}W - ${tradeLosses}L`;
-      document.getElementById("capWinRate").textContent = `${winRate}%`;
-
-      const warnEl = document.getElementById("disciplineWarning");
-      if (consecutiveLosses >= 3) warnEl.classList.remove("hidden");
-      else warnEl.classList.add("hidden");
-    }
-
-    function recordTradeResult(isWin) {
-      const amount = parseFloat(document.getElementById("capTradeAmount").value) || 5;
-      const payout = (parseFloat(document.getElementById("capPayout").value) || 88) / 100.0;
-
-      if (isWin) {
-        tradeWins += 1;
-        consecutiveLosses = 0;
-        netPnL += (amount * payout);
-        playTone(880, 0.15, "triangle", 0);
-      } else {
-        tradeLosses += 1;
-        consecutiveLosses += 1;
-        netPnL -= amount;
-        playTone(330, 0.2, "sawtooth", 0);
-      }
-      updateCapitalDisplay();
-    }
-
-    function resetCapitalTracker() {
-      tradeWins = 0;
-      tradeLosses = 0;
-      consecutiveLosses = 0;
-      netPnL = 0;
-      updateCapitalDisplay();
-    }
-
-    function updateGlobalSessions() {
-      const now = new Date();
-      const utcHour = now.getUTCHours();
-      const sessions = [
-        { name: "سيدني", open: 21, close: 6 },
-        { name: "طوكيو", open: 0, close: 9 },
-        { name: "لندن", open: 7, close: 16 },
-        { name: "نيويورك", open: 12, close: 21 }
+    (function () {
+      const PAIRS_22 = [
+        "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
+        "EUR/GBP", "EUR/JPY", "EUR/AUD", "EUR/CAD", "EUR/CHF", "EUR/NZD",
+        "GBP/JPY", "GBP/AUD", "GBP/CAD", "GBP/CHF", "GBP/NZD",
+        "AUD/JPY", "AUD/CAD", "CAD/JPY", "CHF/JPY"
       ];
 
-      const bar = document.getElementById("sessionsBar");
-      bar.innerHTML = "";
-      sessions.forEach(s => {
-        const isOpen = s.open < s.close
-          ? (utcHour >= s.open && utcHour < s.close)
-          : (utcHour >= s.open || utcHour < s.close);
+      let currentSymbol = "EUR/USD";
+      let currentTimeframe = "15M";
+      let currentStrategy = "1";
+      let lastChartData = null;
+      let finnhubSocket = null;
+      let finnhubKey = "";
 
-        const badge = document.createElement("span");
-        badge.className = isOpen
-          ? "px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold"
-          : "px-2 py-0.5 rounded bg-slate-900 text-slate-500 border border-slate-800";
-        badge.textContent = `${isOpen ? "🟢" : "⚫"} ${s.name}`;
-        bar.appendChild(badge);
-      });
-    }
-    updateGlobalSessions();
-    setInterval(updateGlobalSessions, 60000);
+      const toggles = { ema: true, bb: true, fib: true, sr: true, tv: false };
 
-    function ensureAudioContext() {
-      if (!audioCtx) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) audioCtx = new AudioContextClass();
-      }
-      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
-    }
-    document.addEventListener("click", ensureAudioContext, { once: true });
-
-    function playTone(freq, durationSec, type = "sine", delaySec = 0) {
-      if (!soundEnabled) return;
-      ensureAudioContext();
-      if (!audioCtx) return;
-      try {
-        const startTime = audioCtx.currentTime + delaySec;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, startTime);
-        gain.gain.setValueAtTime(0.14, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + durationSec);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(startTime);
-        osc.stop(startTime + durationSec);
-      } catch (e) {}
-    }
-
-    function playCountdownTick(isFinalClose) {
-      if (isFinalClose) playTone(880, 0.25, "triangle", 0);
-      else playTone(580, 0.08, "sine", 0);
-    }
-
-    function playSignalAlert(direction) {
-      if (direction === "CALL") {
-        playTone(660, 0.15, "triangle", 0);
-        playTone(880, 0.25, "triangle", 0.16);
-      } else if (direction === "PUT") {
-        playTone(660, 0.15, "triangle", 0);
-        playTone(440, 0.25, "triangle", 0.16);
-      }
-    }
-
-    function toggleSound() {
-      soundEnabled = !soundEnabled;
-      const btn = document.getElementById("soundToggleBtn");
-      if (soundEnabled) {
-        ensureAudioContext();
-        playTone(740, 0.12, "sine", 0);
-        btn.textContent = "🔊 الصوت: مفعّل";
-        btn.className = "px-2.5 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 font-semibold transition";
-      } else {
-        btn.textContent = "🔇 الصوت: مكتوم";
-        btn.className = "px-2.5 py-1 rounded bg-slate-900 text-slate-500 border border-slate-800 font-semibold transition";
-      }
-    }
-
-    function copyTextToClipboard(text, btnElement) {
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text);
-      } else {
-        const temp = document.createElement("textarea");
-        temp.value = text;
-        document.body.appendChild(temp);
-        temp.select();
-        document.execCommand("copy");
-        document.body.removeChild(temp);
-      }
-      if (btnElement) {
-        const origText = btnElement.textContent;
-        const origClass = btnElement.className;
-        btnElement.textContent = "✅ تم النسخ!";
-        btnElement.className = "px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs transition shrink-0";
-        setTimeout(() => {
-          btnElement.textContent = origText;
-          btnElement.className = origClass;
-        }, 1200);
-      }
-    }
-
-    function copyActivePair() {
-      copyTextToClipboard(document.getElementById("copyPairInput").value, document.getElementById("copyPairBtn"));
-    }
-
-    const container = document.getElementById("chartContainer");
-    const chart = LightweightCharts.createChart(container, {
-      layout: { background: { color: "#05070a" }, textColor: "#94a3b8" },
-      grid: { vertLines: { color: "#111827" }, horzLines: { color: "#111827" } },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: "#1e293b" },
-      rightPriceScale: { borderColor: "#1e293b", autoScale: true }
-    });
-
-    const defaultPriceFormat = { type: "price", precision: 5, minMove: 0.00001 };
-
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: "#10b981", downColor: "#ef4444",
-      borderUpColor: "#10b981", borderDownColor: "#ef4444",
-      wickUpColor: "#10b981", wickDownColor: "#ef4444",
-      priceFormat: defaultPriceFormat
-    });
-
-    const bbUpperSeries = chart.addLineSeries({ color: "#a855f7", lineWidth: 1, title: "BB Upper", priceFormat: defaultPriceFormat });
-    const bbLowerSeries = chart.addLineSeries({ color: "#a855f7", lineWidth: 1, title: "BB Lower", priceFormat: defaultPriceFormat });
-    const ema200Series = chart.addLineSeries({ color: "#f59e0b", lineWidth: 2, title: "EMA 200", priceFormat: defaultPriceFormat });
-
-    function updatePrecisionForPair(symbol) {
-      const isJpy = symbol.includes("JPY");
-      const fmt = { type: "price", precision: isJpy ? 3 : 5, minMove: isJpy ? 0.001 : 0.00001 };
-      candleSeries.applyOptions({ priceFormat: fmt });
-      bbUpperSeries.applyOptions({ priceFormat: fmt });
-      bbLowerSeries.applyOptions({ priceFormat: fmt });
-      ema200Series.applyOptions({ priceFormat: fmt });
-    }
-
-    window.addEventListener("resize", () => {
-      if (!isTvMode) {
-        chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
-      }
-    });
-
-    // تحميل المؤشرات الرسمية لكل استراتيجية تلقائياً داخل شارت TradingView
-    function getTradingViewStudies(strategy) {
-      if (strategy === "sniper_m15") {
-        // البولينجر باندز + EMA 200
-        return ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
-      }
-      if (strategy === "trend") {
-        // 3 متوسطات متحركة (EMA) + مؤشر الزخم MACD
-        return ["MAExp@tv-basicstudies", "MAExp@tv-basicstudies", "MAExp@tv-basicstudies", "MACD@tv-basicstudies"];
-      }
-      if (strategy === "scalp") {
-        // البولينجر باندز + مؤشر القوة النسبية RSI
-        return ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
-      }
-      if (strategy === "price_action") {
-        // البولينجر باندز + EMA 200 + نقاط الارتداد والدعم والمقاومة Pivot Points
-        return ["BB@tv-basicstudies", "MAExp@tv-basicstudies", "PivotPointsStandard@tv-basicstudies"];
-      }
-      return ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
-    }
-
-    function renderTradingViewWidget(symbol, tf, strategy) {
-      const tvContainer = document.getElementById("tvWidgetContainer");
-      const cleanSym = "FX:" + symbol.replace("/", "");
-      const tvIntervalMap = { "1m": "1", "5m": "5", "15m": "15", "1h": "60" };
-      const interval = tvIntervalMap[tf] || "15";
-      const studiesList = getTradingViewStudies(strategy);
-
-      tvContainer.innerHTML = "";
-      const iframe = document.createElement("iframe");
-      iframe.style.width = "100%";
-      iframe.style.height = "100%";
-      iframe.style.minHeight = "480px";
-      iframe.style.border = "0";
-
-      const params = new URLSearchParams({
-        symbol: cleanSym,
-        interval: interval,
-        hidesidetoolbar: "0",
-        symboledit: "0",
-        saveimage: "0",
-        toolbarbg: "05070a",
-        theme: "dark",
-        style: "1",
-        timezone: "Asia/Hebron",
-        withdateranges: "1",
-        hidevolume: "1",
-        locale: "ar"
-      });
-      studiesList.forEach(st => params.append("studies", st));
-
-      iframe.src = `https://s.tradingview.com/widgetembed/?${params.toString()}`;
-      tvContainer.appendChild(iframe);
-    }
-
-    document.getElementById("toggleChartMode").addEventListener("click", () => {
-      isTvMode = !isTvMode;
-      const smartEl = document.getElementById("chartContainer");
-      const tvEl = document.getElementById("tvWidgetContainer");
-      const btn = document.getElementById("toggleChartMode");
-      const symbol = document.getElementById("pairSelect").value || "EUR/USD";
-      const strategy = document.getElementById("strategySelect").value || "sniper_m15";
-
-      if (isTvMode) {
-        smartEl.classList.add("hidden");
-        tvEl.classList.remove("hidden");
-        btn.textContent = "⚡ العودة للشارت الذكي";
-        btn.className = "px-2.5 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-black transition";
-        renderTradingViewWidget(symbol, currentTf, strategy);
-      } else {
-        tvEl.classList.add("hidden");
-        smartEl.classList.remove("hidden");
-        btn.textContent = "📺 شارت TradingView";
-        btn.className = "px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold hover:bg-indigo-500/30 transition";
-        chart.applyOptions({ width: smartEl.clientWidth, height: smartEl.clientHeight });
-      }
-    });
-
-    function toFinnhubSymbol(pair) {
-      return "OANDA:" + pair.replace("/", "_");
-    }
-
-    function getTfSeconds(tf) {
-      const map = { "1m": 60, "5m": 300, "15m": 900, "1h": 3600 };
-      return map[tf] || 900;
-    }
-
-    function evaluateLiveTickTouch(livePrice) {
-      if (!lastData || !lastData.summary) return;
-      const bbUp = lastData.summary.bb_upper;
-      const bbLow = lastData.summary.bb_lower;
-      const ema200 = lastData.summary.ema_200;
-      const alertBox = document.getElementById("liveTickAlertBox");
-      const nowMs = Date.now();
-
-      if (livePrice > ema200 && livePrice <= bbLow) {
-        alertBox.classList.remove("hidden");
-        alertBox.className = "rounded-lg px-3 py-2 border border-emerald-500 bg-emerald-950/70 text-emerald-300 text-xs font-black text-center animate-pulse";
-        alertBox.textContent = "🔥 تحقق الهدف السعري الحي: السعر عند البولينجر السفلي الآن (CALL جاهز عند الإغلاق)";
-        if (nowMs - lastLiveAlertTime > 15000) {
-          playTone(780, 0.14, "triangle", 0);
-          lastLiveAlertTime = nowMs;
-        }
-      } else if (livePrice < ema200 && livePrice >= bbUp) {
-        alertBox.classList.remove("hidden");
-        alertBox.className = "rounded-lg px-3 py-2 border border-rose-500 bg-rose-950/70 text-rose-300 text-xs font-black text-center animate-pulse";
-        alertBox.textContent = "🔥 تحقق الهدف السعري الحي: السعر عند البولينجر العلوي الآن (PUT جاهز عند الإغلاق)";
-        if (nowMs - lastLiveAlertTime > 15000) {
-          playTone(520, 0.14, "triangle", 0);
-          lastLiveAlertTime = nowMs;
-        }
-      } else {
-        alertBox.classList.add("hidden");
-      }
-    }
-
-    function connectWebSocket(pair) {
-      const fhSymbol = toFinnhubSymbol(pair);
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        if (subscribedSymbol && subscribedSymbol !== fhSymbol) {
-          ws.send(JSON.stringify({ type: "unsubscribe", symbol: subscribedSymbol }));
-        }
-        ws.send(JSON.stringify({ type: "subscribe", symbol: fhSymbol }));
-        subscribedSymbol = fhSymbol;
-        return;
-      }
-
-      ws = new WebSocket(`wss://ws.finnhub.io?token=${FINNHUB_KEY}`);
-
-      ws.onopen = () => {
-        document.getElementById("wsStatus").textContent = "🟢 بث حي متصل";
-        document.getElementById("wsStatus").className = "px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
-        document.getElementById("wsDot").className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping";
-        ws.send(JSON.stringify({ type: "subscribe", symbol: fhSymbol }));
-        subscribedSymbol = fhSymbol;
-      };
-
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "trade" && msg.data && msg.data.length > 0 && currentCandle) {
-          const tick = msg.data[msg.data.length - 1];
-          const price = tick.p;
-          const activePair = document.getElementById("pairSelect").value || "EUR/USD";
-          const digits = activePair.includes("JPY") ? 3 : 5;
-          const roundedPrice = Number(price.toFixed(digits));
-
-          const tfSec = getTfSeconds(currentTf);
-          const tickCandleTime = Math.floor((tick.t / 1000) / tfSec) * tfSec;
-
-          if (tickCandleTime > currentCandle.time) {
-            currentCandle = {
-              time: tickCandleTime,
-              open: roundedPrice,
-              high: roundedPrice,
-              low: roundedPrice,
-              close: roundedPrice
-            };
-          } else {
-            currentCandle.close = roundedPrice;
-            if (roundedPrice > currentCandle.high) currentCandle.high = roundedPrice;
-            if (roundedPrice < currentCandle.low) currentCandle.low = roundedPrice;
-          }
-
-          candleSeries.update(currentCandle);
-          document.getElementById("livePriceBadge").textContent = roundedPrice.toFixed(digits);
-          evaluateLiveTickTouch(roundedPrice);
-        }
-      };
-
-      ws.onclose = () => {
-        document.getElementById("wsStatus").textContent = "إعادة ربط...";
-        setTimeout(() => connectWebSocket(document.getElementById("pairSelect").value || "EUR/USD"), 3000);
-      };
-    }
-
-    async function loadPairs() {
-      const res = await fetch("/api/pairs");
-      const data = await res.json();
-      const select = document.getElementById("pairSelect");
-      data.pairs.forEach(p => {
+      // تعبئة قائمة الأزواج
+      const pairSelect = document.getElementById("pairSelect");
+      PAIRS_22.forEach(p => {
         const opt = document.createElement("option");
         opt.value = p;
         opt.textContent = p;
-        select.appendChild(opt);
+        pairSelect.appendChild(opt);
       });
-      document.getElementById("copyPairInput").value = select.value || "EUR/USD";
-    }
 
-    function clearSRLines() {
-      srPriceLines.forEach(line => candleSeries.removePriceLine(line));
-      srPriceLines = [];
-    }
-
-    function clearFibLines() {
-      fibPriceLines.forEach(line => candleSeries.removePriceLine(line));
-      fibPriceLines = [];
-    }
-
-    function renderSRLines(levels, digits) {
-      clearSRLines();
-      const listEl = document.getElementById("srList");
-      listEl.innerHTML = "";
-
-      if (!levels || levels.length === 0) {
-        listEl.innerHTML = `<div class="text-slate-500">لا توجد مستويات ارتداد واضحة حالياً</div>`;
-        return;
-      }
-
-      levels.forEach(lvl => {
-        const isRes = lvl.type === "RESISTANCE";
-        const color = isRes ? "#f97316" : "#38bdf8";
-        const label = isRes ? `R=${lvl.touches}` : `S=${lvl.touches}`;
-        const formattedPrice = Number(lvl.price).toFixed(digits);
-
-        if (showSR) {
-          const line = candleSeries.createPriceLine({
-            price: lvl.price,
-            color: color,
-            lineWidth: 2,
-            lineStyle: LightweightCharts.LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: label
-          });
-          srPriceLines.push(line);
-        }
-
-        const badge = document.createElement("div");
-        badge.className = "flex items-center justify-between bg-black px-2.5 py-1 rounded border border-slate-900";
-        badge.innerHTML = `
-          <span class="${isRes ? 'text-orange-400' : 'text-sky-400'} font-bold">${isRes ? 'مقاومة' : 'دعم'} (${lvl.touches} لمسات)</span>
-          <span class="font-mono text-slate-200">${formattedPrice}</span>
-        `;
-        listEl.appendChild(badge);
-      });
-    }
-
-    function renderFibLines(fibLevels) {
-      clearFibLines();
-      if (!showFib || !fibLevels || fibLevels.length === 0) return;
-
-      fibLevels.forEach(f => {
-        const line = candleSeries.createPriceLine({
-          price: f.price,
-          color: f.is_golden ? "#ec4899" : "#64748b",
-          lineWidth: f.is_golden ? 2 : 1,
-          lineStyle: LightweightCharts.LineStyle.Dotted,
-          axisLabelVisible: true,
-          title: `Fib ${f.ratio}`
+      // التبويبات الجانبية
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
         });
-        fibPriceLines.push(line);
       });
-    }
 
-    function updateTechnicalSummary(summary, digits) {
-      if (!summary) return;
-      document.getElementById("techStructure").textContent = summary.structure;
-      document.getElementById("techRsi").textContent = `${summary.rsi_14} (${summary.rsi_state})`;
-      document.getElementById("techMacd").textContent = summary.macd_state;
-      document.getElementById("techEma200").textContent = Number(summary.ema_200).toFixed(digits);
-      document.getElementById("techBB").textContent = `${Number(summary.bb_upper).toFixed(digits)} / ${Number(summary.bb_lower).toFixed(digits)}`;
-    }
+      // أزرار الفريم الزمني
+      document.querySelectorAll(".tf-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentTimeframe = btn.dataset.tf;
+          updateHeaderTitles();
+          if (toggles.tv) loadTradingView();
+          analyzeCurrentPair();
+        });
+      });
 
-    function renderPredictiveCard(eta, digits) {
-      const card = document.getElementById("predictiveCard");
-      if (!eta) {
-        card.classList.add("hidden");
-        return;
+      pairSelect.addEventListener("change", () => {
+        currentSymbol = pairSelect.value;
+        updateHeaderTitles();
+        connectFinnhub(currentSymbol);
+        if (toggles.tv) loadTradingView();
+        analyzeCurrentPair();
+      });
+
+      document.getElementById("strategySelect").addEventListener("change", (e) => {
+        currentStrategy = e.target.value;
+        if (toggles.tv) loadTradingView();
+        analyzeCurrentPair();
+      });
+
+      document.getElementById("copyPairBtn").addEventListener("click", () => {
+        navigator.clipboard.writeText(currentSymbol).catch(() => {});
+        const btn = document.getElementById("copyPairBtn");
+        btn.textContent = "✅ تم النسخ";
+        setTimeout(() => { btn.textContent = "📋 نسخ"; }, 1200);
+      });
+
+      function updateHeaderTitles() {
+        document.getElementById("activePairDisplay").textContent = currentSymbol;
+        document.getElementById("chartTitle").textContent = `${currentSymbol} — ${currentTimeframe}`;
       }
 
-      card.classList.remove("hidden");
-      const isCall = eta.bias === "CALL";
-      const targetStr = Number(eta.target_price).toFixed(digits);
+      // أزرار المؤشرات و TradingView
+      document.querySelectorAll(".ind-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const ind = btn.dataset.ind;
+          toggles[ind] = !toggles[ind];
+          btn.classList.toggle("active", toggles[ind]);
+          if (ind === "tv") {
+            document.getElementById("candleCanvas").style.display = toggles.tv ? "none" : "block";
+            document.getElementById("tvContainer").style.display = toggles.tv ? "block" : "none";
+            if (toggles.tv) loadTradingView();
+          } else {
+            drawChart();
+          }
+        });
+      });
 
-      document.getElementById("predConfidenceBadge").textContent = `ثقة ${eta.confidence}%`;
-      document.getElementById("predMainText").innerHTML = `
-        <span class="${isCall ? 'text-emerald-400' : 'text-rose-400'}">${isCall ? '🟢 صعود (CALL)' : '🔴 هبوط (PUT)'}</span>
-        — الوصول المتوقع: <span class="font-mono text-amber-300 underline">${eta.eta_time}</span> (بعد ${eta.est_candles} شمعة)
-      `;
-      document.getElementById("predSubText").textContent = `الهدف السعري: ${targetStr} (متبقي ${eta.distance_pips} نقطة) | ${eta.notes}`;
-    }
-
-    async function fetchAndRender() {
-      const symbol = document.getElementById("pairSelect").value || "EUR/USD";
-      currentStrategy = document.getElementById("strategySelect").value || "sniper_m15";
-      document.getElementById("copyPairInput").value = symbol;
-
-      const digits = symbol.includes("JPY") ? 3 : 5;
-      updatePrecisionForPair(symbol);
-
-      document.getElementById("chartTitle").textContent = `${symbol} — ${currentTf.toUpperCase()}`;
-      document.getElementById("loadingSpinner").classList.remove("hidden");
-
-      if (isTvMode) {
-        renderTradingViewWidget(symbol, currentTf, currentStrategy);
+      function loadTradingView() {
+        const container = document.getElementById("tvContainer");
+        container.innerHTML = "";
+        if (typeof TradingView === "undefined") return;
+        const tvSym = "FX:" + currentSymbol.replace("/", "");
+        const tvInt = currentTimeframe === "1M" ? "1" : currentTimeframe === "5M" ? "5" : currentTimeframe === "1H" ? "60" : "15";
+        let studies = ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
+        if (currentStrategy === "3") studies = ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
+        new TradingView.widget({
+          autosize: true,
+          symbol: tvSym,
+          interval: tvInt,
+          timezone: "Asia/Gaza",
+          theme: "dark",
+          style: "1",
+          locale: "ar_AE",
+          toolbar_bg: "#0d1321",
+          enable_publishing: false,
+          hide_side_toolbar: false,
+          studies: studies,
+          container_id: "tvContainer"
+        });
       }
 
-      try {
-        const url = `/api/analyze?symbol=${encodeURIComponent(symbol)}&tf=${currentTf}&strategy=${encodeURIComponent(currentStrategy)}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        document.getElementById("loadingSpinner").classList.add("hidden");
+      // الساعة الحية وجلسات السوق + العداد التنازلي
+      function updateClocks() {
+        const now = new Date();
+        const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+        const gaza = new Date(utcMs + 2 * 3600000);
+        const hh = String(gaza.getHours()).padStart(2, "0");
+        const mm = String(gaza.getMinutes()).padStart(2, "0");
+        const ss = String(gaza.getSeconds()).padStart(2, "0");
+        document.getElementById("gazaClock").textContent = `توقيت غزة (UTC+2): ${hh}:${mm}:${ss}`;
 
-        if (!res.ok) {
-          document.getElementById("signalReason").textContent = data.error || "حدث خطأ في جلب البيانات";
+        const utcH = new Date(utcMs).getUTCHours();
+        document.getElementById("sess-sydney").classList.toggle("open", utcH >= 22 || utcH < 7);
+        document.getElementById("sess-tokyo").classList.toggle("open", utcH >= 0 && utcH < 9);
+        document.getElementById("sess-london").classList.toggle("open", utcH >= 7 && utcH < 16);
+        document.getElementById("sess-ny").classList.toggle("open", utcH >= 12 && utcH < 21);
+
+        const step = currentTimeframe === "1M" ? 1 : currentTimeframe === "5M" ? 5 : currentTimeframe === "1H" ? 60 : 15;
+        const remMin = step - 1 - (gaza.getMinutes() % step);
+        const remSec = 59 - gaza.getSeconds();
+        document.getElementById("candleCountdown").textContent =
+          `${String(remMin).padStart(2, "0")}:${String(remSec).padStart(2, "0")}`;
+      }
+      setInterval(updateClocks, 1000);
+      updateClocks();
+
+      // Finnhub WebSocket للبث المباشر
+      function connectFinnhub(symbol) {
+        if (!finnhubKey) return;
+        if (finnhubSocket) {
+          try { finnhubSocket.close(); } catch (_) {}
+          finnhubSocket = null;
+        }
+        const fhSym = "OANDA:" + symbol.replace("/", "_");
+        try {
+          finnhubSocket = new WebSocket(`wss://ws.finnhub.io?token=${finnhubKey}`);
+          finnhubSocket.onopen = () => {
+            finnhubSocket.send(JSON.stringify({ type: "subscribe", symbol: fhSym }));
+          };
+          finnhubSocket.onmessage = (event) => {
+            try {
+              const msg = JSON.parse(event.data);
+              if (msg.type === "trade" && Array.isArray(msg.data) && msg.data.length > 0) {
+                const price = msg.data[msg.data.length - 1].p;
+                const dec = symbol.includes("JPY") ? 3 : 5;
+                document.getElementById("livePriceVal").textContent = Number(price).toFixed(dec);
+              }
+            } catch (_) {}
+          };
+        } catch (_) {}
+      }
+
+      // تنبيه صوتي
+      function playAlertBeep() {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.12, ctx.currentTime);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.28);
+        } catch (_) {}
+      }
+
+      // تحليل الزوج الحالي
+      async function analyzeCurrentPair() {
+        const signalBox = document.getElementById("signalBox");
+        const signalReason = document.getElementById("signalReason");
+        signalBox.className = "signal-box";
+        signalBox.textContent = "⏳ جارٍ التحليل...";
+        signalReason.textContent = "يتم جلب أحدث الشموع وحساب المؤشرات...";
+
+        try {
+          const url = `/api/analyze?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const resp = await fetch(url);
+          const data = await resp.json();
+
+          if (!data.ok) {
+            signalBox.textContent = "⚠️ تنبيه";
+            signalReason.textContent = data.error || "تعذر جلب البيانات.";
+            return;
+          }
+
+          if (data.finnhub_key && !finnhubKey) {
+            finnhubKey = data.finnhub_key;
+            connectFinnhub(currentSymbol);
+          }
+
+          lastChartData = data;
+          const a = data.analysis;
+          const dec = currentSymbol.includes("JPY") ? 3 : 5;
+
+          document.getElementById("livePriceVal").textContent = Number(a.live_price).toFixed(dec);
+          signalBox.className = "signal-box " + (a.signal === "CALL" || a.signal === "PUT" ? a.signal : "");
+          if (a.signal === "CALL") {
+            signalBox.textContent = `🟢 صعود (CALL) — ثقة ${a.confidence}%`;
+            playAlertBeep();
+          } else if (a.signal === "PUT") {
+            signalBox.textContent = `🔴 هبوط (PUT) — ثقة ${a.confidence}%`;
+            playAlertBeep();
+          } else {
+            signalBox.textContent = "⏸️ انتظار (WAIT)";
+          }
+          signalReason.textContent = a.reason;
+
+          // تحديث التنبؤ الزمني
+          document.getElementById("etaConf").textContent = `ثقة ${a.eta.confidence}%`;
+          document.getElementById("etaDir").textContent = a.eta.direction === "CALL" ? "🟢 صعود (CALL)" : "🔴 هبوط (PUT)";
+          document.getElementById("etaTarget").textContent = a.eta.target_price;
+          document.getElementById("etaTime").textContent = `${a.eta.dist_pips} نقطة (~${a.eta.time})`;
+          document.getElementById("etaConfluence").textContent = a.eta.confluence;
+
+          // تحديث تبويب قراءة السوق
+          document.getElementById("lvlBbUp").textContent = a.bb_upper;
+          document.getElementById("lvlBbLow").textContent = a.bb_lower;
+          document.getElementById("lvlEma200").textContent = a.ema200;
+
+          const fibList = document.getElementById("fibLevelsList");
+          fibList.innerHTML = Object.entries(a.fib)
+            .map(([k, v]) => `<div class="level-row"><span>Fib ${k}</span><span>${v}</span></div>`)
+            .join("");
+
+          drawChart();
+        } catch (_) {
+          signalBox.textContent = "⚠️ خطأ اتصال";
+          signalReason.textContent = "تعذر الاتصال بالسيرفر، تأكد من الإنترنت وأعد المحاولة.";
+        }
+      }
+
+      // رسم الشارت الاحترافي على Canvas
+      function drawChart() {
+        if (!lastChartData || !lastChartData.candles || toggles.tv) return;
+        const canvas = document.getElementById("candleCanvas");
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = "#050811";
+        ctx.fillRect(0, 0, w, h);
+
+        const candles = lastChartData.candles;
+        const analysis = lastChartData.analysis;
+        if (!candles.length) return;
+
+        const padL = 16, padR = 68, padT = 24, padB = 28;
+        const plotW = w - padL - padR;
+        const plotH = h - padT - padB;
+
+        let minP = Infinity, maxP = -Infinity;
+        candles.forEach(c => {
+          minP = Math.min(minP, c.low, c.bb_lower || c.low, c.ema200 || c.low);
+          maxP = Math.max(maxP, c.high, c.bb_upper || c.high, c.ema200 || c.high);
+        });
+        const range = Math.max(maxP - minP, 1e-6);
+        const yOf = (p) => padT + ((maxP - p) / range) * plotH;
+
+        // شبكة خفيفة
+        ctx.strokeStyle = "#111827";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 5; i++) {
+          const y = padT + (plotH / 5) * i;
+          ctx.beginPath();
+          ctx.moveTo(padL, y);
+          ctx.lineTo(w - padR, y);
+          ctx.stroke();
+          const priceLbl = (maxP - (range / 5) * i).toFixed(currentSymbol.includes("JPY") ? 3 : 5);
+          ctx.fillStyle = "#64748b";
+          ctx.font = "11px monospace";
+          ctx.fillText(priceLbl, w - padR + 6, y + 4);
+        }
+
+        // خطوط فيبوناتشي
+        if (toggles.fib && analysis.fib) {
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = "rgba(236, 72, 153, 0.45)";
+          Object.entries(analysis.fib).forEach(([k, val]) => {
+            const y = yOf(val);
+            if (y >= padT && y <= h - padB) {
+              ctx.beginPath();
+              ctx.moveTo(padL, y);
+              ctx.lineTo(w - padR, y);
+              ctx.stroke();
+              ctx.fillStyle = "#f9a8d4";
+              ctx.font = "10px monospace";
+              ctx.fillText(`Fib ${k}`, padL + 4, y - 3);
+            }
+          });
+          ctx.setLineDash([]);
+        }
+
+        // خطوط الدعم والمقاومة
+        if (toggles.sr) {
+          ctx.lineWidth = 1.5;
+          (analysis.resistances || []).forEach(r => {
+            const y = yOf(r.price);
+            ctx.strokeStyle = "rgba(239, 68, 68, 0.7)";
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+          });
+          (analysis.supports || []).forEach(s => {
+            const y = yOf(s.price);
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.7)";
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+          });
+        }
+
+        const stepX = plotW / candles.length;
+        const bodyW = Math.max(2, stepX * 0.62);
+
+        // البولينجر و EMA200
+        function drawLine(key, color, width) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          let started = false;
+          candles.forEach((c, i) => {
+            if (c[key] == null) return;
+            const x = padL + i * stepX + stepX / 2;
+            const y = yOf(c[key]);
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+          });
+          ctx.stroke();
+        }
+
+        if (toggles.bb) {
+          drawLine("bb_upper", "rgba(139, 92, 246, 0.85)", 1.5);
+          drawLine("bb_lower", "rgba(139, 92, 246, 0.85)", 1.5);
+        }
+        if (toggles.ema) {
+          drawLine("ema200", "#f59e0b", 2);
+        }
+
+        // الشموع اليابانية
+        candles.forEach((c, i) => {
+          const x = padL + i * stepX + stepX / 2;
+          const isUp = c.close >= c.open;
+          const color = isUp ? "#10b981" : "#ef4444";
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = 1;
+
+          ctx.beginPath();
+          ctx.moveTo(x, yOf(c.high));
+          ctx.lineTo(x, yOf(c.low));
+          ctx.stroke();
+
+          const yOpen = yOf(c.open);
+          const yClose = yOf(c.close);
+          const top = Math.min(yOpen, yClose);
+          const height = Math.max(1.5, Math.abs(yClose - yOpen));
+          ctx.fillRect(x - bodyW / 2, top, bodyW, height);
+        });
+      }
+
+      window.addEventListener("resize", drawChart);
+
+      // المسح الشامل اليدوي
+      async function runManualScan() {
+        const box = document.getElementById("scanResults");
+        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح السوق (${currentTimeframe})...</div>`;
+        try {
+          const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const resp = await fetch(url);
+          const data = await resp.json();
+          renderScanResults(data);
+        } catch (_) {
+          box.innerHTML = `<div style="color:var(--red);text-align:center;">⚠️ تعذر إتمام المسح حالياً.</div>`;
+        }
+      }
+
+      function renderScanResults(data) {
+        const box = document.getElementById("scanResults");
+        if (!data.ok) {
+          box.innerHTML = `<div style="color:var(--red);text-align:center;">${data.error || "خطأ في المسح"}</div>`;
           return;
         }
-
-        lastData = data;
-        if (data.candles && data.candles.length > 0) {
-          currentCandle = { ...data.candles[data.candles.length - 1] };
-        }
-
-        document.getElementById("gazaClock").textContent = data.gaza_time;
-        candleSeries.setData(data.candles);
-        candleSeries.setMarkers(showMarkers && data.markers ? data.markers : []);
-
-        const mCount = data.markers ? data.markers.length : 0;
-        document.getElementById("toggleMarkers").textContent = `الأسهم (${mCount})`;
-
-        bbUpperSeries.setData(showBB ? data.indicators.bb_upper : []);
-        bbLowerSeries.setData(showBB ? data.indicators.bb_lower : []);
-        ema200Series.setData(showEMA ? data.indicators.ema_200 : []);
-        renderSRLines(data.sr_levels, digits);
-        renderFibLines(data.fib_levels);
-        updateTechnicalSummary(data.summary, digits);
-        renderPredictiveCard(data.predictive_eta, digits);
-
-        document.getElementById("livePriceBadge").textContent = Number(data.live_price).toFixed(digits);
-        const dirEl = document.getElementById("signalDirection");
-        const sigBox = document.getElementById("signalBox");
-
-        if (data.signal === "CALL") {
-          dirEl.textContent = "🟢 CALL (صعود) — ادخل الآن";
-          dirEl.className = "text-lg font-black text-center py-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse";
-          sigBox.className = "rounded-xl p-3.5 border-2 border-emerald-500 bg-emerald-950/30 space-y-2 transition";
-          playSignalAlert("CALL");
-        } else if (data.signal === "PUT") {
-          dirEl.textContent = "🔴 PUT (هبوط) — ادخل الآن";
-          dirEl.className = "text-lg font-black text-center py-2 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse";
-          sigBox.className = "rounded-xl p-3.5 border-2 border-rose-500 bg-rose-950/30 space-y-2 transition";
-          playSignalAlert("PUT");
-        } else {
-          dirEl.textContent = "⏳ مراقبة السوق (لا توجد إشارة مؤكدة)";
-          dirEl.className = "text-sm font-bold text-center py-2 rounded-lg bg-slate-900 text-slate-300";
-          sigBox.className = "rounded-xl p-3.5 border border-slate-800 bg-black space-y-2 transition";
-        }
-        document.getElementById("signalReason").textContent = data.reason;
-
-        connectWebSocket(symbol);
-      } catch (e) {
-        document.getElementById("loadingSpinner").classList.add("hidden");
-        document.getElementById("signalReason").textContent = "تعذر الاتصال بالخادم.";
-      }
-    }
-
-    function openPairFromScanner(symbol) {
-      const select = document.getElementById("pairSelect");
-      select.value = symbol;
-      document.getElementById("copyPairInput").value = symbol;
-      fetchAndRender();
-    }
-
-    async function runMarketScanner() {
-      const btn = document.getElementById("scanAllBtn");
-      const box = document.getElementById("scannerBox");
-      const list = document.getElementById("scanResultsList");
-      const meta = document.getElementById("scanMeta");
-      currentStrategy = document.getElementById("strategySelect").value || "sniper_m15";
-
-      btn.disabled = true;
-      btn.textContent = "⏳ مسح 22 زوجاً...";
-      box.classList.remove("hidden");
-      meta.textContent = "جاري الفحص...";
-      list.innerHTML = `<div class="text-amber-300 text-center py-2">يتم فحص جميع الأزواج الـ 22 وحساب التوقيت المتوقع للوصول...</div>`;
-
-      try {
-        const res = await fetch(`/api/scan?tf=${currentTf}&strategy=${encodeURIComponent(currentStrategy)}`);
-        const data = await res.json();
-
-        btn.disabled = false;
-        btn.textContent = "🔍 مسح 22/22 زوجاً";
-
-        if (!res.ok) {
-          list.innerHTML = `<div class="text-rose-400">${data.error || "فشل المسح"}</div>`;
-          return;
-        }
-
-        meta.textContent = `تم فحص ${data.scanned_count}/${data.total_pairs} | ${data.scan_time}`;
-        list.innerHTML = "";
-
-        if (data.active_signals && data.active_signals.length > 0) {
-          playSignalAlert(data.active_signals[0].signal);
-          data.active_signals.forEach(item => {
-            const isCall = item.signal === "CALL";
-            const row = document.createElement("div");
-            row.className = `flex items-center justify-between p-2 rounded-lg border cursor-pointer transition ${
-              isCall ? "bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25" : "bg-rose-500/15 border-rose-500/40 hover:bg-rose-500/25"
-            }`;
-            row.onclick = () => openPairFromScanner(item.symbol);
-            row.innerHTML = `
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-white">${item.symbol}</span>
-                <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 border border-slate-700">نسخ</button>
-              </div>
-              <span class="font-black ${isCall ? "text-emerald-400" : "text-rose-400"}">
-                ${isCall ? "🟢 CALL الآن" : "🔴 PUT الآن"}
-              </span>
-            `;
-            list.appendChild(row);
+        let html = `<div style="color:var(--text-muted);margin-bottom:8px;">تم فحص <b>${data.scanned}/${data.total}</b> زوجاً</div>`;
+        if (data.confirmed && data.confirmed.length > 0) {
+          html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن:</div>`;
+          data.confirmed.forEach(c => {
+            html += `<div class="scan-item" data-sym="${c.symbol}">
+              <span><b>${c.symbol}</b> (${c.signal === "CALL" ? "🟢 صعود" : "🔴 هبوط"})</span>
+              <span style="color:var(--gold)">ثقة ${c.confidence}%</span>
+            </div>`;
           });
         } else {
-          const emptyMsg = document.createElement("div");
-          emptyMsg.className = "text-indigo-300 text-center py-1 text-[11px] font-bold";
-          emptyMsg.textContent = "🔮 أقرب الفرص وتوقيت الوصول المتوقع (بتوقيت غزة):";
-          list.appendChild(emptyMsg);
+          html += `<div style="color:var(--text-muted);margin-bottom:8px;">لا توجد إشارة مؤكدة في هذه اللحظة.</div>`;
+        }
 
-          if (data.near_setups && data.near_setups.length > 0) {
-            data.near_setups.forEach(item => {
-              const row = document.createElement("div");
-              row.className = "flex flex-col gap-1 bg-slate-950 hover:bg-slate-900 px-2.5 py-2 rounded border border-slate-800 cursor-pointer";
-              row.onclick = () => openPairFromScanner(item.symbol);
-              row.innerHTML = `
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-white">${item.symbol}</span>
-                    <button type="button" onclick="event.stopPropagation(); copyTextToClipboard('${item.symbol}', this);" class="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-amber-300 border border-slate-700">نسخ</button>
-                  </div>
-                  <span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">ثقة ${item.confidence}%</span>
-                </div>
-                <div class="flex items-center justify-between text-[11px]">
-                  <span class="${item.bias === 'CALL' ? 'text-emerald-400' : 'text-rose-400'} font-bold">${item.bias} (متبقي ${item.distance_pips} نقطة)</span>
-                  <span class="text-amber-300 font-mono font-bold">⏰ الساعة ${item.eta_time}</span>
-                </div>
-              `;
-              list.appendChild(row);
-            });
-          } else {
-            const noNear = document.createElement("div");
-            noNear.className = "text-slate-500 text-center py-1 text-[11px]";
-            noNear.textContent = "لا توجد أزواج ضمن نطاق الوصول السريع حالياً.";
-            list.appendChild(noNear);
+        if (data.upcoming && data.upcoming.length > 0) {
+          html += `<div style="color:var(--gold);font-weight:700;margin:8px 0 5px;">⏳ أقرب 3 فرص قادمة:</div>`;
+          data.upcoming.forEach(u => {
+            html += `<div class="scan-item" data-sym="${u.symbol}">
+              <span><b>${u.symbol}</b> (${u.direction})</span>
+              <span style="color:#94a3b8">${u.dist_pips} نقطة (~${u.time})</span>
+            </div>`;
+          });
+        }
+        box.innerHTML = html;
+        box.querySelectorAll(".scan-item").forEach(el => {
+          el.addEventListener("click", () => {
+            currentSymbol = el.dataset.sym;
+            pairSelect.value = currentSymbol;
+            updateHeaderTitles();
+            connectFinnhub(currentSymbol);
+            if (toggles.tv) loadTradingView();
+            analyzeCurrentPair();
+          });
+        });
+      }
+
+      document.getElementById("analyzeBtn").addEventListener("click", analyzeCurrentPair);
+      document.getElementById("scanBtn").addEventListener("click", runManualScan);
+
+      // حاسبة رأس المال (بدون مضاعفة)
+      let wins = 0, losses = 0, netProfit = 0;
+      function updateCapitalCalc() {
+        const bal = parseFloat(document.getElementById("capBalance").value) || 0;
+        const risk = parseFloat(document.getElementById("capRisk").value) || 0;
+        const payout = parseFloat(document.getElementById("capPayout").value) || 85;
+        const stake = bal * (risk / 100);
+        const profit = stake * (payout / 100);
+        document.getElementById("calcStake").textContent = `$${stake.toFixed(2)}`;
+        document.getElementById("calcProfit").textContent = `+$${profit.toFixed(2)}`;
+      }
+      ["capBalance", "capRisk", "capPayout"].forEach(id => {
+        document.getElementById(id).addEventListener("input", updateCapitalCalc);
+      });
+      document.getElementById("addWinBtn").addEventListener("click", () => {
+        const bal = parseFloat(document.getElementById("capBalance").value) || 0;
+        const risk = parseFloat(document.getElementById("capRisk").value) || 0;
+        const payout = parseFloat(document.getElementById("capPayout").value) || 85;
+        const profit = (bal * (risk / 100)) * (payout / 100);
+        wins++; netProfit += profit;
+        document.getElementById("sessionWL").textContent = `${wins} / ${losses}`;
+        document.getElementById("sessionNet").textContent = `${netProfit >= 0 ? "+" : ""}$${netProfit.toFixed(2)}`;
+      });
+      document.getElementById("addLossBtn").addEventListener("click", () => {
+        const bal = parseFloat(document.getElementById("capBalance").value) || 0;
+        const risk = parseFloat(document.getElementById("capRisk").value) || 0;
+        const stake = bal * (risk / 100);
+        losses++; netProfit -= stake;
+        document.getElementById("sessionWL").textContent = `${wins} / ${losses}`;
+        document.getElementById("sessionNet").textContent = `${netProfit >= 0 ? "+" : ""}$${netProfit.toFixed(2)}`;
+      });
+      document.getElementById("resetSessionBtn").addEventListener("click", () => {
+        wins = 0; losses = 0; netProfit = 0;
+        document.getElementById("sessionWL").textContent = "0 / 0";
+        document.getElementById("sessionNet").textContent = "$0.00";
+      });
+      updateCapitalCalc();
+
+      // ================= وحدة الرادار التلقائي المحمي (6 ساعات) =================
+      const apBtn = document.getElementById("ap-toggle-btn");
+      const apStateText = document.getElementById("ap-state-text");
+      const apTimerEl = document.getElementById("ap-timer");
+      const apToastEl = document.getElementById("ap-toast");
+
+      let isAutoActive = false;
+      let remainingSec = 0;
+      let apTickInterval = null;
+      let lastScannedMinuteKey = "";
+      let networkFailCount = 0;
+      let isAutoScanning = false;
+
+      function formatApTime(sec) {
+        const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+      }
+
+      function showApToast(html, borderColor = "#10b981") {
+        apToastEl.style.borderColor = borderColor;
+        apToastEl.innerHTML = html;
+        apToastEl.style.display = "block";
+        clearTimeout(apToastEl._t);
+        apToastEl._t = setTimeout(() => { apToastEl.style.display = "none"; }, 12000);
+      }
+
+      function renderApUI() {
+        if (isAutoActive) {
+          apBtn.classList.add("active");
+          apBtn.textContent = "🟢 الرادار التلقائي: مفعّل";
+          apStateText.textContent = "يفحص 16 زوجاً عند إغلاق كل شمعة";
+          apTimerEl.textContent = `متبقي: ${formatApTime(remainingSec)}`;
+        } else {
+          apBtn.classList.remove("active");
+          apBtn.textContent = "🤖 الرادار التلقائي: متوقف";
+          apStateText.textContent = "إيقاف تلقائي بعد 6 ساعات";
+          apTimerEl.textContent = "00:00:00";
+        }
+      }
+
+      async function stopAutoPilot(reasonMsg) {
+        isAutoActive = false;
+        remainingSec = 0;
+        if (apTickInterval) { clearInterval(apTickInterval); apTickInterval = null; }
+        renderApUI();
+        try { await fetch("/api/autopilot/stop", { method: "POST" }); } catch (_) {}
+        if (reasonMsg) showApToast(reasonMsg, "#f59e0b");
+      }
+
+      async function runAutoScan() {
+        if (!isAutoActive || isAutoScanning) return;
+        isAutoScanning = true;
+        try {
+          const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error("Network error");
+          const data = await resp.json();
+          networkFailCount = 0;
+
+          if (data.auto_stopped) {
+            await stopAutoPilot("⏱️ توقف الرادار تلقائياً بعد انتهاء الـ 6 ساعات.");
+            return;
+          }
+
+          renderScanResults(data);
+
+          if (data.ok && Array.isArray(data.confirmed) && data.confirmed.length > 0) {
+            playAlertBeep();
+            const first = data.confirmed[0];
+            currentSymbol = first.symbol;
+            pairSelect.value = currentSymbol;
+            updateHeaderTitles();
+            connectFinnhub(currentSymbol);
+            analyzeCurrentPair();
+
+            const items = data.confirmed.map(c =>
+              `<div>${c.signal === "CALL" ? "🟢" : "🔴"} <b>${c.symbol}</b> (${c.signal}) — ثقة ${c.confidence}%</div>`
+            ).join("");
+            showApToast(`<b>🎯 فرص مؤكدة الآن (${currentTimeframe}):</b><br>${items}`, "#10b981");
+          }
+        } catch (_) {
+          networkFailCount += 1;
+          if (networkFailCount >= 2) {
+            await stopAutoPilot("⚠️ تم إيقاف الرادار تلقائياً بسبب انقطاع الاتصال بالإنترنت.");
+          }
+        } finally {
+          isAutoScanning = false;
+        }
+      }
+
+      function startApLoop() {
+        if (apTickInterval) clearInterval(apTickInterval);
+        apTickInterval = setInterval(() => {
+          if (!isAutoActive) return;
+          remainingSec -= 1;
+          if (remainingSec <= 0) {
+            stopAutoPilot("⏱️ انتهت مدة الـ 6 ساعات — تم إيقاف الرادار التلقائي لحماية الرصيد.");
+            return;
+          }
+          renderApUI();
+
+          const now = new Date();
+          const stepMin = currentTimeframe === "1M" ? 1 : currentTimeframe === "5M" ? 5 : currentTimeframe === "1H" ? 60 : 15;
+          const m = now.getMinutes();
+          const s = now.getSeconds();
+          const minuteKey = `${now.getHours()}:${m}`;
+
+          if (m % stepMin === 0 && s >= 4 && s <= 12 && lastScannedMinuteKey !== minuteKey) {
+            lastScannedMinuteKey = minuteKey;
+            runAutoScan();
+          }
+        }, 1000);
+      }
+
+      apBtn.addEventListener("click", async () => {
+        if (isAutoActive) {
+          await stopAutoPilot("🛑 تم إيقاف الرادار التلقائي يدوياً.");
+        } else {
+          try {
+            const resp = await fetch("/api/autopilot/start", { method: "POST" });
+            const data = await resp.json();
+            if (data.ok) {
+              isAutoActive = true;
+              remainingSec = data.remaining_seconds || 21600;
+              networkFailCount = 0;
+              renderApUI();
+              startApLoop();
+              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يتوقف تلقائياً عند انتهاء الوقت أو انقطاع النت).", "#10b981");
+            }
+          } catch (_) {
+            showApToast("⚠️ تعذر الاتصال بالسيرفر لتفعيل الرادار.", "#ef4444");
           }
         }
-      } catch (e) {
-        btn.disabled = false;
-        btn.textContent = "🔍 مسح 22/22 زوجاً";
-        list.innerHTML = `<div class="text-rose-400">تعذر إكمال الفحص، حاول مرة أخرى.</div>`;
-      }
-    }
-
-    setInterval(() => {
-      const tfSec = getTfSeconds(currentTf);
-      const nowSec = Math.floor(Date.now() / 1000);
-      const rem = tfSec - (nowSec % tfSec);
-      const mins = String(Math.floor(rem / 60)).padStart(2, "0");
-      const secs = String(rem % 60).padStart(2, "0");
-
-      const cdEl = document.getElementById("candleCountdown");
-      const cdBox = document.getElementById("countdownBox");
-      cdEl.textContent = `${mins}:${secs}`;
-
-      if (rem <= 5) {
-        cdEl.className = "font-mono text-base font-black text-rose-400 animate-pulse";
-        cdBox.className = "flex items-center justify-between bg-rose-950/40 px-3 py-2 rounded-lg border border-rose-500/60 transition";
-        playCountdownTick(rem === 1);
-      } else {
-        cdEl.className = "font-mono text-sm font-black text-amber-400";
-        cdBox.className = "flex items-center justify-between bg-black px-3 py-2 rounded-lg border border-slate-900 transition";
-      }
-    }, 1000);
-
-    document.querySelectorAll(".tf-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tf-btn").forEach(b => {
-          b.className = "tf-btn bg-black hover:bg-slate-900 border border-slate-800 py-1.5 rounded-lg text-xs font-bold";
-        });
-        btn.className = "tf-btn bg-amber-500 text-slate-950 border border-amber-400 py-1.5 rounded-lg text-xs font-black";
-        currentTf = btn.dataset.tf;
-        fetchAndRender();
       });
-    });
 
-    document.getElementById("toggleMarkers").addEventListener("click", () => {
-      showMarkers = !showMarkers;
-      if (lastData) candleSeries.setMarkers(showMarkers && lastData.markers ? lastData.markers : []);
-    });
-    document.getElementById("toggleSR").addEventListener("click", () => {
-      showSR = !showSR;
-      const symbol = document.getElementById("pairSelect").value || "EUR/USD";
-      const digits = symbol.includes("JPY") ? 3 : 5;
-      if (lastData) renderSRLines(lastData.sr_levels, digits);
-    });
-    document.getElementById("toggleFib").addEventListener("click", () => {
-      showFib = !showFib;
-      if (lastData) renderFibLines(lastData.fib_levels);
-    });
-    document.getElementById("toggleBB").addEventListener("click", () => {
-      showBB = !showBB;
-      if (lastData) {
-        bbUpperSeries.setData(showBB ? lastData.indicators.bb_upper : []);
-        bbLowerSeries.setData(showBB ? lastData.indicators.bb_lower : []);
-      }
-    });
-    document.getElementById("toggleEMA").addEventListener("click", () => {
-      showEMA = !showEMA;
-      if (lastData) ema200Series.setData(showEMA ? lastData.indicators.ema_200 : []);
-    });
+      // مزامنة الحالة عند تحميل الصفحة
+      fetch("/api/autopilot/status")
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && data.active && data.remaining_seconds > 0) {
+            isAutoActive = true;
+            remainingSec = data.remaining_seconds;
+            renderApUI();
+            startApLoop();
+          }
+        })
+        .catch(() => {});
 
-    document.getElementById("analyzeBtn").addEventListener("click", fetchAndRender);
-    document.getElementById("scanAllBtn").addEventListener("click", runMarketScanner);
-    document.getElementById("pairSelect").addEventListener("change", fetchAndRender);
-    document.getElementById("strategySelect").addEventListener("change", fetchAndRender);
-
-    loadPairs().then(fetchAndRender);
+      // فحص أولي عند فتح المنصة
+      analyzeCurrentPair();
+    })();
   </script>
 </body>
 </html>
