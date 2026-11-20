@@ -795,7 +795,7 @@
         const ss = String(gaza.getSeconds()).padStart(2, "0");
         document.getElementById("gazaClock").textContent = `توقيت غزة (UTC+2): ${hh}:${mm}:${ss}`;
 
-        const utcH = new Date(utcMs).getUTCHours();
+        const utcH = now.getUTCHours();
         document.getElementById("sess-sydney").classList.toggle("open", utcH >= 22 || utcH < 7);
         document.getElementById("sess-tokyo").classList.toggle("open", utcH >= 0 && utcH < 9);
         document.getElementById("sess-london").classList.toggle("open", utcH >= 7 && utcH < 16);
