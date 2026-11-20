@@ -8,10 +8,19 @@ import requests
 from requests.adapters import HTTPAdapter
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Body
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 app = FastAPI(title="M15 Sniper PRO")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 # ==========================================
 # 1. API Keys & Core Configuration
@@ -32,6 +41,9 @@ except Exception:
 key_lock = threading.Lock()
 cache_lock = threading.Lock()
 autopilot_lock = threading.Lock()
+otc_lock = threading.Lock()
+
+OTC_CANDLES = {}  # { "EURUSD_OTC": { "1M": {bucket_ts: {o,h,l,c}}, "5M": {...}, "15M": {...} } }
 
 current_key_index = 0
 key_cooldowns = {0: 0.0, 1: 0.0, 2: 0.0}
@@ -607,6 +619,63 @@ def api_scan(
         "total": len(target_pairs),
         "confirmed": confirmed
     })
+
+# ==========================================
+# 6. OTC Browser Bridge Routes
+# ==========================================
+@app.post("/api/otc/ingest")
+def api_otc_ingest(payload: dict = Body(...)):
+    ticks = payload.get("ticks", [])
+    if not isinstance(ticks, list) or not ticks:
+        return JSONResponse({"ok": True, "ingested": 0})
+
+    now_ts = int(time.time())
+    with otc_lock:
+        for t in ticks:
+            sym = str(t.get("symbol", "")).strip().upper()
+            try:
+                price = float(t.get("price", 0))
+                ts = int(t.get("ts") or now_ts)
+            except Exception:
+                continue
+            if not sym or price <= 0:
+                continue
+
+            if sym not in OTC_CANDLES:
+                OTC_CANDLES[sym] = {"1M": {}, "5M": {}, "15M": {}}
+
+            for tf_name, tf_sec in (("1M", 60), ("5M", 300), ("15M", 900)):
+                bucket = ts - (ts % tf_sec)
+                store = OTC_CANDLES[sym][tf_name]
+                if bucket not in store:
+                    store[bucket] = {
+                        "open_ts": bucket,
+                        "open": price,
+                        "high": price,
+                        "low": price,
+                        "close": price,
+                    }
+                    if len(store) > 300:
+                        oldest = min(store.keys())
+                        store.pop(oldest, None)
+                else:
+                    c = store[bucket]
+                    if price > c["high"]:
+                        c["high"] = price
+                    if price < c["low"]:
+                        c["low"] = price
+                    c["close"] = price
+
+    return JSONResponse({"ok": True, "ingested": len(ticks)})
+
+@app.get("/api/otc/pairs")
+def api_otc_pairs():
+    with otc_lock:
+        summary = {
+            sym: {tf: len(buckets) for tf, buckets in tfs.items()}
+            for sym, tfs in OTC_CANDLES.items()
+        }
+    return JSONResponse({"ok": True, "pairs": summary})
 
 if __name__ == "__main__":
     import uvicorn
