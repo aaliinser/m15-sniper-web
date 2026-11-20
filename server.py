@@ -43,7 +43,12 @@ AUTO_PILOT_STATE = {
 }
 
 CACHE_STORE = {}
-CACHE_TTL_SECONDS = 150
+CACHE_TTL_BY_TF = {
+    "1M": 20,
+    "5M": 45,
+    "15M": 120,
+    "1H": 120
+}
 
 thread_local = threading.local()
 
@@ -52,7 +57,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/3.2"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/3.3"})
         thread_local.session = s
     return thread_local.session
 
@@ -117,7 +122,7 @@ def mark_key_cooldown(idx, seconds=55.0):
 
 def cleanup_cache(now_ts):
     with cache_lock:
-        expired = [k for k, (ts, _) in CACHE_STORE.items() if now_ts - ts >= CACHE_TTL_SECONDS]
+        expired = [k for k, (ts, ttl, _) in CACHE_STORE.items() if now_ts - ts >= ttl]
         for k in expired:
             CACHE_STORE.pop(k, None)
 
@@ -137,16 +142,21 @@ def check_autopilot_state():
 def fetch_candles(symbol, timeframe="15M", outputsize=300):
     symbol = normalize_symbol(symbol)
     tf_upper = str(timeframe or "15M").strip().upper()
-    interval = TIMEFRAME_MAP.get(tf_upper, "15min")
-    cache_key = f"{symbol}_{interval}"
+    if tf_upper not in TIMEFRAME_MAP:
+        tf_upper = "15M"
+    interval = TIMEFRAME_MAP[tf_upper]
+    tf_sec = TIMEFRAME_SECONDS[tf_upper]
+    ttl = CACHE_TTL_BY_TF.get(tf_upper, 120)
     now = time.time()
+    current_bucket = int(now // tf_sec)
+    cache_key = f"{symbol}_{interval}_{current_bucket}"
 
     cleanup_cache(now)
 
     with cache_lock:
         if cache_key in CACHE_STORE:
-            cached_time, cached_df = CACHE_STORE[cache_key]
-            if now - cached_time < CACHE_TTL_SECONDS:
+            cached_time, cached_ttl, cached_df = CACHE_STORE[cache_key]
+            if now - cached_time < cached_ttl:
                 return cached_df.copy(), None
 
     last_error = "تم الوصول للحد المؤقت للطلبات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
@@ -192,11 +202,12 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             if len(df) < 205:
                 return None, "البيانات الرقمية للشموع غير صالحة."
 
-            df["open_ts"] = (df["open_dt_utc"].astype("int64") // 10**9).astype(int)
+            # Safe nanosecond precision conversion across Pandas 1.x / 2.x / 3.x
+            df["open_ts"] = (df["open_dt_utc"].astype("datetime64[ns, UTC]").astype("int64") // 10**9).astype(int)
             df = df.sort_values("open_ts").reset_index(drop=True)
 
             with cache_lock:
-                CACHE_STORE[cache_key] = (time.time(), df.copy())
+                CACHE_STORE[cache_key] = (time.time(), ttl, df.copy())
 
             return df, None
 
@@ -218,6 +229,11 @@ def filter_closed_candles(df, timeframe):
 # ==========================================
 def calculate_indicators(closed_df):
     df = closed_df.copy()
+    if len(df) == 0:
+        for col in ["bb_mid", "bb_upper", "bb_lower", "ema200", "ema50", "ema20", "rsi", "atr", "stoch_k", "stoch_d"]:
+            df[col] = np.nan
+        return df
+
     close = df["close"]
     high = df["high"]
     low = df["low"]
