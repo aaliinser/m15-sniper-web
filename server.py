@@ -222,12 +222,12 @@ def calculate_indicators(closed_df):
     high = df["high"]
     low = df["low"]
 
-    # Validated Bollinger Bands (15, 2.3, ddof=0)
+    # Smart Bollinger Bands (15, 2.0, ddof=0)
     sma15 = close.rolling(window=15, min_periods=15).mean()
     std15 = close.rolling(window=15, min_periods=15).std(ddof=0)
     df["bb_mid"] = sma15
-    df["bb_upper"] = sma15 + (2.3 * std15)
-    df["bb_lower"] = sma15 - (2.3 * std15)
+    df["bb_upper"] = sma15 + (2.0 * std15)
+    df["bb_lower"] = sma15 - (2.0 * std15)
 
     # Validated EMA 200 (adjust=False) + EMA 50 & EMA 20
     df["ema200"] = close.ewm(span=200, min_periods=200, adjust=False).mean()
@@ -321,7 +321,9 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     prev = closed_df.iloc[-2]  # Previous CLOSED candle
 
     required_cols = ["bb_upper", "bb_lower", "ema200"]
-    if strategy_id == "2":
+    if strategy_id == "1":
+        required_cols.extend(["rsi", "atr"])
+    elif strategy_id == "2":
         required_cols.extend(["ema50", "ema20"])
     elif strategy_id == "3":
         required_cols.append("rsi")
@@ -359,18 +361,32 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     resistances, supports, fib_levels = detect_sr_and_fib(closed_df, symbol)
 
     signal = "WAIT"
-    reason = "بانتظار إغلاق شمعة خارج حدود البولينجر مع توافق EMA 200"
+    reason = "بانتظار إغلاق أو ذيل رفض عند BB(15, 2.0) مع توافق EMA 200"
     confidence = 0
 
-    if strategy_id == "1":  # Exact Validated M15 Sniper PRO (57.19% benchmark)
-        if close_p > ema200 and close_p <= bb_l:
+    if strategy_id == "1":  # Smart Rejection Engine (BB 15/2.0 + EMA 200 + ATR + RSI)
+        candle_range = max(high_p - low_p, 1e-9)
+        body_size = abs(close_p - open_p)
+        lower_wick = min(open_p, close_p) - low_p
+        upper_wick = high_p - max(open_p, close_p)
+        not_blowout = (atr <= 0.0) or (body_size <= 2.2 * atr)
+
+        if close_p > ema200 and close_p <= bb_l and rsi <= 42.0 and not_blowout:
             signal = "CALL"
-            reason = "إغلاق مؤكد <= البولينجر السفلي وفوق EMA 200 (الشروط المُتحقق منها)"
-            confidence = 57
-        elif close_p < ema200 and close_p >= bb_u:
+            reason = f"[A+] إغلاق مؤكد <= البولينجر السفلي وفوق EMA 200 (RSI={rsi:.1f})"
+            confidence = 62
+        elif close_p < ema200 and close_p >= bb_u and rsi >= 58.0 and not_blowout:
             signal = "PUT"
-            reason = "إغلاق مؤكد >= البولينجر العلوي وتحت EMA 200 (الشروط المُتحقق منها)"
-            confidence = 57
+            reason = f"[A+] إغلاق مؤكد >= البولينجر العلوي وتحت EMA 200 (RSI={rsi:.1f})"
+            confidence = 62
+        elif close_p > ema200 and low_p <= bb_l and (lower_wick / candle_range) >= 0.35 and rsi <= 42.0 and not_blowout:
+            signal = "CALL"
+            reason = f"[A] ذيل رفض سفلي قوي عند البولينجر السفلي وفوق EMA 200 (RSI={rsi:.1f})"
+            confidence = 58
+        elif close_p < ema200 and high_p >= bb_u and (upper_wick / candle_range) >= 0.35 and rsi >= 58.0 and not_blowout:
+            signal = "PUT"
+            reason = f"[A] ذيل رفض علوي قوي عند البولينجر العلوي وتحت EMA 200 (RSI={rsi:.1f})"
+            confidence = 58
 
     elif strategy_id == "2":  # Trend Following
         if close_p > ema200 and ema20 > ema50 and low_p <= ema20 and close_p > open_p:
