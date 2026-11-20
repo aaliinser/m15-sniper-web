@@ -8,19 +8,10 @@ import requests
 from requests.adapters import HTTPAdapter
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, Query, Body
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 
 app = FastAPI(title="M15 Sniper PRO")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
-)
 
 # ==========================================
 # 1. API Keys & Core Configuration
@@ -41,9 +32,6 @@ except Exception:
 key_lock = threading.Lock()
 cache_lock = threading.Lock()
 autopilot_lock = threading.Lock()
-otc_lock = threading.Lock()
-
-OTC_CANDLES = {}  # { "EURUSD_OTC": { "1M": {bucket_ts: {o,h,l,c}}, "5M": {...}, "15M": {...} } }
 
 current_key_index = 0
 key_cooldowns = {0: 0.0, 1: 0.0, 2: 0.0}
@@ -89,13 +77,8 @@ TIMEFRAME_SECONDS = {
     "1H": 3600
 }
 
-def is_otc_symbol(raw_sym):
-    return "_OTC" in str(raw_sym or "").upper()
-
 def normalize_symbol(raw_sym):
     sym = str(raw_sym or "EUR/USD").strip().upper()
-    if "_OTC" in sym:
-        return sym.replace("/", "").replace(" ", "")
     if "/" not in sym and len(sym) == 6:
         sym = f"{sym[:3]}/{sym[3:]}"
     return sym
@@ -115,7 +98,7 @@ def normalize_strategy(raw_strat):
     return "1"
 
 def get_price_decimals(symbol):
-    return 3 if "JPY" in str(symbol).upper() else 5
+    return 3 if "JPY" in symbol else 5
 
 def get_available_key_index(now_ts):
     global current_key_index
@@ -149,30 +132,10 @@ def check_autopilot_state():
         return active, remaining
 
 # ==========================================
-# 2. Fetch Candles (Forex UTC + OTC Live Bridge)
+# 2. Fetch Candles (UTC End-to-End, 300 Warm-up Candles)
 # ==========================================
-def fetch_otc_candles(symbol, timeframe="1M"):
-    tf_upper = str(timeframe or "1M").strip().upper()
-    if tf_upper not in ("1M", "5M", "15M"):
-        tf_upper = "1M"
-
-    with otc_lock:
-        pair_data = OTC_CANDLES.get(symbol, {})
-        buckets = pair_data.get(tf_upper, {})
-        if not buckets:
-            return None, f"لا توجد شموع مسجلة بعد لزوج {symbol} — افتح الزوج في تبويب Quotex وانتظر لحظات."
-        rows = [dict(v) for v in buckets.values()]
-
-    df = pd.DataFrame(rows)
-    df = df.sort_values("open_ts").reset_index(drop=True)
-    df["open_dt_utc"] = pd.to_datetime(df["open_ts"], unit="s", utc=True)
-    return df, None
-
 def fetch_candles(symbol, timeframe="15M", outputsize=300):
     symbol = normalize_symbol(symbol)
-    if is_otc_symbol(symbol):
-        return fetch_otc_candles(symbol, timeframe)
-
     tf_upper = str(timeframe or "15M").strip().upper()
     interval = TIMEFRAME_MAP.get(tf_upper, "15min")
     cache_key = f"{symbol}_{interval}"
@@ -253,13 +216,8 @@ def filter_closed_candles(df, timeframe):
 # ==========================================
 # 3. Audited Indicators (Strict Closed Candles)
 # ==========================================
-def calculate_indicators(closed_df, is_otc=False):
+def calculate_indicators(closed_df):
     df = closed_df.copy()
-    if len(df) == 0:
-        for col in ["bb_mid", "bb_upper", "bb_lower", "ema200", "ema50", "ema20", "rsi", "atr", "stoch_k", "stoch_d"]:
-            df[col] = np.nan
-        return df
-
     close = df["close"]
     high = df["high"]
     low = df["low"]
@@ -271,14 +229,10 @@ def calculate_indicators(closed_df, is_otc=False):
     df["bb_upper"] = sma15 + (2.0 * std15)
     df["bb_lower"] = sma15 - (2.0 * std15)
 
-    # Adaptive warm-up for OTC (starts at 15 closed candles), strict 200 for Forex
-    min_ema200 = 15 if is_otc else 200
-    min_ema50 = 15 if is_otc else 50
-    min_ema20 = 15 if is_otc else 20
-
-    df["ema200"] = close.ewm(span=200, min_periods=min_ema200, adjust=False).mean()
-    df["ema50"] = close.ewm(span=50, min_periods=min_ema50, adjust=False).mean()
-    df["ema20"] = close.ewm(span=20, min_periods=min_ema20, adjust=False).mean()
+    # Validated EMA 200 (adjust=False) + EMA 50 & EMA 20
+    df["ema200"] = close.ewm(span=200, min_periods=200, adjust=False).mean()
+    df["ema50"] = close.ewm(span=50, min_periods=50, adjust=False).mean()
+    df["ema20"] = close.ewm(span=20, min_periods=20, adjust=False).mean()
 
     # Wilder RSI (14)
     delta = close.diff()
@@ -328,7 +282,7 @@ def detect_sr_and_fib(closed_df, symbol):
 
     atr_raw = closed_df["atr"].iloc[-1]
     atr_val = float(atr_raw) if not pd.isna(atr_raw) else (diff * 0.02)
-    min_tol = 0.015 if "JPY" in str(symbol).upper() else 0.00015
+    min_tol = 0.015 if "JPY" in symbol else 0.00015
     tol = max(atr_val * 0.35, min_tol)
 
     candidates = list(recent["high"].values) + list(recent["low"].values)
@@ -352,18 +306,11 @@ def detect_sr_and_fib(closed_df, symbol):
 def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
     strategy_id = normalize_strategy(strategy_id)
-    otc_mode = is_otc_symbol(symbol)
-    min_candles = 16 if otc_mode else 201
 
-    if len(closed_df) < min_candles:
-        msg = (
-            f"جاري تجميع شموع الـ OTC ({len(closed_df)}/{min_candles} شمعة مغلقة)..."
-            if otc_mode
-            else "بيانات الشموع المغلقة غير كافية لحساب EMA 200."
-        )
+    if len(closed_df) < 201:
         return {
             "signal": "WAIT",
-            "reason": msg,
+            "reason": "بيانات الشموع المغلقة غير كافية لحساب EMA 200.",
             "confidence": 0,
             "live_price": round(live_price, decimals),
             "bb_upper": None, "bb_lower": None, "ema200": None,
@@ -517,7 +464,7 @@ def scan_single_pair(sym, timeframe, strategy):
     if err or df is None:
         return None
     closed_df, live_price = filter_closed_candles(df, timeframe)
-    closed_df = calculate_indicators(closed_df, is_otc=is_otc_symbol(sym))
+    closed_df = calculate_indicators(closed_df)
     res = evaluate_strategy(closed_df, live_price, sym, strategy)
     return sym, res
 
@@ -582,7 +529,7 @@ def api_analyze(
         return JSONResponse({"ok": False, "error": err})
 
     closed_df, live_price = filter_closed_candles(df, tf)
-    closed_df = calculate_indicators(closed_df, is_otc=is_otc_symbol(sym))
+    closed_df = calculate_indicators(closed_df)
     analysis = evaluate_strategy(closed_df, live_price, sym, strategy)
 
     chart_df = closed_df.tail(90).copy()
@@ -614,12 +561,10 @@ def api_analyze(
 def api_scan(
     timeframe: str = Query(default="15M"),
     strategy: str = Query(default="1"),
-    mode: str = Query(default="manual"),
-    market: str = Query(default="forex")
+    mode: str = Query(default="manual")
 ):
     tf = str(timeframe).upper()
     m = str(mode).strip().lower()
-    mkt = str(market).strip().lower()
 
     if m == "auto":
         active, _ = check_autopilot_state()
@@ -630,102 +575,38 @@ def api_scan(
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
             })
 
-    if mkt == "otc":
-        with otc_lock:
-            target_pairs = sorted(OTC_CANDLES.keys())
-    else:
-        target_pairs = PAIRS_22
-
+    target_pairs = PAIRS_22
     confirmed = []
     scanned_count = 0
 
-    if target_pairs:
-        with ThreadPoolExecutor(max_workers=6) as executor:
-            futures = {executor.submit(scan_single_pair, sym, tf, strategy): sym for sym in target_pairs}
-            for future in as_completed(futures):
-                try:
-                    outcome = future.result()
-                except Exception:
-                    continue
-                if outcome is None:
-                    continue
-                sym, res = outcome
-                scanned_count += 1
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(scan_single_pair, sym, tf, strategy): sym for sym in target_pairs}
+        for future in as_completed(futures):
+            try:
+                outcome = future.result()
+            except Exception:
+                continue
+            if outcome is None:
+                continue
+            sym, res = outcome
+            scanned_count += 1
 
-                if res["signal"] in ("CALL", "PUT"):
-                    confirmed.append({
-                        "symbol": sym,
-                        "signal": res["signal"],
-                        "confidence": res["confidence"],
-                        "reason": res["reason"],
-                        "price": res["live_price"]
-                    })
+            if res["signal"] in ("CALL", "PUT"):
+                confirmed.append({
+                    "symbol": sym,
+                    "signal": res["signal"],
+                    "confidence": res["confidence"],
+                    "reason": res["reason"],
+                    "price": res["live_price"]
+                })
 
     return JSONResponse({
         "ok": True,
         "mode": m,
-        "market": mkt,
         "scanned": scanned_count,
         "total": len(target_pairs),
         "confirmed": confirmed
     })
-
-# ==========================================
-# 6. OTC Browser Bridge Routes
-# ==========================================
-@app.post("/api/otc/ingest")
-def api_otc_ingest(payload: dict = Body(...)):
-    ticks = payload.get("ticks", [])
-    if not isinstance(ticks, list) or not ticks:
-        return JSONResponse({"ok": True, "ingested": 0})
-
-    now_ts = int(time.time())
-    with otc_lock:
-        for t in ticks:
-            sym = str(t.get("symbol", "")).strip().upper()
-            try:
-                price = float(t.get("price", 0))
-                ts = int(t.get("ts") or now_ts)
-            except Exception:
-                continue
-            if not sym or price <= 0:
-                continue
-
-            if sym not in OTC_CANDLES:
-                OTC_CANDLES[sym] = {"1M": {}, "5M": {}, "15M": {}}
-
-            for tf_name, tf_sec in (("1M", 60), ("5M", 300), ("15M", 900)):
-                bucket = ts - (ts % tf_sec)
-                store = OTC_CANDLES[sym][tf_name]
-                if bucket not in store:
-                    store[bucket] = {
-                        "open_ts": bucket,
-                        "open": price,
-                        "high": price,
-                        "low": price,
-                        "close": price,
-                    }
-                    if len(store) > 300:
-                        oldest = min(store.keys())
-                        store.pop(oldest, None)
-                else:
-                    c = store[bucket]
-                    if price > c["high"]:
-                        c["high"] = price
-                    if price < c["low"]:
-                        c["low"] = price
-                    c["close"] = price
-
-    return JSONResponse({"ok": True, "ingested": len(ticks)})
-
-@app.get("/api/otc/pairs")
-def api_otc_pairs():
-    with otc_lock:
-        summary = {
-            sym: {tf: len(buckets) for tf, buckets in tfs.items()}
-            for sym, tfs in OTC_CANDLES.items()
-        }
-    return JSONResponse({"ok": True, "pairs": summary})
 
 if __name__ == "__main__":
     import uvicorn
