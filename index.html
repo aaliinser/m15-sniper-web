@@ -158,6 +158,37 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
+    .market-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .market-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 6px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .market-btn.active {
+      background: rgba(245, 158, 11, 0.18);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .market-btn.active.otc-active {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: var(--green);
+      color: #34d399;
+    }
+
     .active-pair-row {
       display: flex;
       align-items: center;
@@ -529,6 +560,11 @@
       </div>
 
       <div id="tab-signals" class="tab-content active">
+        <div class="market-switch">
+          <button class="market-btn active" id="btnMarketForex" type="button">🌍 الفوركس (22)</button>
+          <button class="market-btn" id="btnMarketOtc" type="button">⚡ OTC (Quotex الحي)</button>
+        </div>
+
         <div class="active-pair-row">
           <span style="font-size:12px;color:var(--text-muted)">الزوج النشط:</span>
           <span class="pair-badge" id="activePairDisplay">EUR/USD</span>
@@ -536,7 +572,7 @@
         </div>
 
         <div class="form-group">
-          <label for="pairSelect">زوج العملات (22 زوجاً)</label>
+          <label for="pairSelect" id="pairSelectLabel">زوج العملات (22 زوجاً)</label>
           <select id="pairSelect"></select>
         </div>
 
@@ -682,6 +718,7 @@
         "AUD/JPY", "AUD/CAD", "CAD/JPY", "CHF/JPY"
       ];
 
+      let currentMarket = "forex";
       let currentSymbol = "EUR/USD";
       let currentTimeframe = "15M";
       let currentStrategy = "1";
@@ -689,16 +726,123 @@
       let finnhubSocket = null;
       let finnhubKey = "";
       let lastAutoScanStamp = "";
+      let otcPairsMap = {};
 
       const toggles = { ema: true, bb: true, fib: true, sr: true, tv: false };
 
       const pairSelect = document.getElementById("pairSelect");
-      PAIRS_22.forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p;
-        opt.textContent = p;
-        pairSelect.appendChild(opt);
+      const pairSelectLabel = document.getElementById("pairSelectLabel");
+      const btnMarketForex = document.getElementById("btnMarketForex");
+      const btnMarketOtc = document.getElementById("btnMarketOtc");
+      const scanBtn = document.getElementById("scanBtn");
+
+      function populateForexPairs() {
+        pairSelect.innerHTML = "";
+        PAIRS_22.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p;
+          opt.textContent = p;
+          pairSelect.appendChild(opt);
+        });
+        if (!PAIRS_22.includes(currentSymbol)) {
+          currentSymbol = "EUR/USD";
+        }
+        pairSelect.value = currentSymbol;
+        pairSelectLabel.textContent = "زوج العملات (22 زوجاً)";
+        scanBtn.textContent = "🔍 مسح 22/22 زوجاً";
+      }
+
+      function populateOtcPairs() {
+        const syms = Object.keys(otcPairsMap).sort();
+        pairSelect.innerHTML = "";
+        if (syms.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "افتح أي زوج OTC في Quotex ليظهر هنا...";
+          pairSelect.appendChild(opt);
+          currentSymbol = "";
+          pairSelectLabel.textContent = "أزواج OTC الحية (0 نشط)";
+        } else {
+          syms.forEach(sym => {
+            const counts = otcPairsMap[sym] || {};
+            const opt = document.createElement("option");
+            opt.value = sym;
+            opt.textContent = `${sym}  (1M:${counts["1M"] || 0} | 5M:${counts["5M"] || 0})`;
+            pairSelect.appendChild(opt);
+          });
+          if (!syms.includes(currentSymbol)) {
+            currentSymbol = syms[0];
+          }
+          pairSelect.value = currentSymbol;
+          pairSelectLabel.textContent = `أزواج OTC الحية (${syms.length} نشط)`;
+        }
+        scanBtn.textContent = "⚡ مسح أزواج OTC الحية";
+      }
+
+      async function refreshOtcPairs(autoAnalyzeIfEmpty = false) {
+        try {
+          const resp = await fetch("/api/otc/pairs");
+          const data = await resp.json();
+          if (data.ok && data.pairs) {
+            const prevSym = currentSymbol;
+            otcPairsMap = data.pairs;
+            if (currentMarket === "otc") {
+              populateOtcPairs();
+              updateHeaderTitles();
+              if (autoAnalyzeIfEmpty && !prevSym && currentSymbol) {
+                analyzeCurrentPair(true);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      setInterval(() => {
+        if (currentMarket === "otc") {
+          refreshOtcPairs(true);
+        }
+      }, 10000);
+
+      btnMarketForex.addEventListener("click", () => {
+        if (currentMarket === "forex") return;
+        currentMarket = "forex";
+        btnMarketForex.classList.add("active");
+        btnMarketOtc.classList.remove("active", "otc-active");
+        populateForexPairs();
+        updateHeaderTitles();
+        connectFinnhub(currentSymbol);
+        if (toggles.tv) loadTradingView();
+        analyzeCurrentPair();
       });
+
+      btnMarketOtc.addEventListener("click", async () => {
+        if (currentMarket === "otc") return;
+        currentMarket = "otc";
+        btnMarketOtc.classList.add("active", "otc-active");
+        btnMarketForex.classList.remove("active");
+        if (finnhubSocket) {
+          try { finnhubSocket.close(); } catch (_) {}
+          finnhubSocket = null;
+        }
+        if (toggles.tv) {
+          toggles.tv = false;
+          document.getElementById("tvToggleBtn").classList.remove("active");
+          document.getElementById("candleCanvas").style.display = "block";
+          document.getElementById("tvContainer").style.display = "none";
+        }
+        await refreshOtcPairs(false);
+        populateOtcPairs();
+        updateHeaderTitles();
+        if (currentSymbol) {
+          analyzeCurrentPair();
+        } else {
+          document.getElementById("signalBox").className = "signal-box";
+          document.getElementById("signalBox").textContent = "⏳ بانتظار بيانات OTC...";
+          document.getElementById("signalReason").textContent = "افتح أي زوج OTC في تبويب Quotex ليبدأ الجسر بإرسال الشموع تلقائياً.";
+        }
+      });
+
+      populateForexPairs();
 
       document.querySelectorAll(".tab-btn").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -715,26 +859,29 @@
           btn.classList.add("active");
           currentTimeframe = btn.dataset.tf;
           updateHeaderTitles();
-          if (toggles.tv) loadTradingView();
-          analyzeCurrentPair();
+          if (toggles.tv && currentMarket === "forex") loadTradingView();
+          if (currentSymbol) analyzeCurrentPair();
         });
       });
 
       pairSelect.addEventListener("change", () => {
         currentSymbol = pairSelect.value;
         updateHeaderTitles();
-        connectFinnhub(currentSymbol);
-        if (toggles.tv) loadTradingView();
-        analyzeCurrentPair();
+        if (currentMarket === "forex") {
+          connectFinnhub(currentSymbol);
+          if (toggles.tv) loadTradingView();
+        }
+        if (currentSymbol) analyzeCurrentPair();
       });
 
       document.getElementById("strategySelect").addEventListener("change", (e) => {
         currentStrategy = e.target.value;
-        if (toggles.tv) loadTradingView();
-        analyzeCurrentPair();
+        if (toggles.tv && currentMarket === "forex") loadTradingView();
+        if (currentSymbol) analyzeCurrentPair();
       });
 
       document.getElementById("copyPairBtn").addEventListener("click", () => {
+        if (!currentSymbol) return;
         navigator.clipboard.writeText(currentSymbol).catch(() => {});
         const btn = document.getElementById("copyPairBtn");
         btn.textContent = "✅ تم النسخ";
@@ -742,13 +889,18 @@
       });
 
       function updateHeaderTitles() {
-        document.getElementById("activePairDisplay").textContent = currentSymbol;
-        document.getElementById("chartTitle").textContent = `${currentSymbol} — ${currentTimeframe}`;
+        const displaySym = currentSymbol || (currentMarket === "otc" ? "OTC" : "EUR/USD");
+        document.getElementById("activePairDisplay").textContent = displaySym;
+        document.getElementById("chartTitle").textContent = `${displaySym} — ${currentTimeframe}`;
       }
 
       document.querySelectorAll(".ind-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           const ind = btn.dataset.ind;
+          if (ind === "tv" && currentMarket === "otc") {
+            showApToast("📺 شارت TradingView مخصص لأزواج الفوركس فقط — شارت البوت يعرض شموع OTC الحية مباشرة.", "#f59e0b");
+            return;
+          }
           toggles[ind] = !toggles[ind];
           btn.classList.toggle("active", toggles[ind]);
           if (ind === "tv") {
@@ -764,7 +916,7 @@
       function loadTradingView() {
         const container = document.getElementById("tvContainer");
         container.innerHTML = "";
-        if (typeof TradingView === "undefined") return;
+        if (typeof TradingView === "undefined" || currentMarket === "otc") return;
         const tvSym = "FX:" + currentSymbol.replace("/", "");
         const tvInt = currentTimeframe === "1M" ? "1" : currentTimeframe === "5M" ? "5" : currentTimeframe === "1H" ? "60" : "15";
         let studies = ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
@@ -811,7 +963,7 @@
       updateClocks();
 
       function connectFinnhub(symbol) {
-        if (!finnhubKey) return;
+        if (currentMarket === "otc" || !finnhubKey || !symbol || symbol.includes("_OTC")) return;
         if (finnhubSocket) {
           try { finnhubSocket.close(); } catch (_) {}
           finnhubSocket = null;
@@ -851,6 +1003,7 @@
       }
 
       async function analyzeCurrentPair(silent = false) {
+        if (!currentSymbol) return;
         const signalBox = document.getElementById("signalBox");
         const signalReason = document.getElementById("signalReason");
         signalBox.className = "signal-box";
@@ -870,7 +1023,7 @@
 
           if (data.finnhub_key && !finnhubKey) {
             finnhubKey = data.finnhub_key;
-            connectFinnhub(currentSymbol);
+            if (currentMarket === "forex") connectFinnhub(currentSymbol);
           }
 
           lastChartData = data;
@@ -1031,9 +1184,10 @@
 
       async function runManualScan() {
         const box = document.getElementById("scanResults");
-        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح 22/22 زوجاً (${currentTimeframe})...</div>`;
+        const label = currentMarket === "otc" ? "أزواج OTC الحية" : "22/22 زوجاً";
+        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح ${label} (${currentTimeframe})...</div>`;
         try {
-          const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const url = `/api/scan?mode=manual&market=${encodeURIComponent(currentMarket)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
           const data = await resp.json();
           renderScanResults(data, false);
@@ -1068,8 +1222,10 @@
             currentSymbol = el.dataset.sym;
             pairSelect.value = currentSymbol;
             updateHeaderTitles();
-            connectFinnhub(currentSymbol);
-            if (toggles.tv) loadTradingView();
+            if (currentMarket === "forex") {
+              connectFinnhub(currentSymbol);
+              if (toggles.tv) loadTradingView();
+            }
             analyzeCurrentPair();
           });
         });
@@ -1144,12 +1300,13 @@
       }
 
       function renderApUI() {
+        const mktTag = currentMarket === "otc" ? "OTC" : "22/22";
         if (isAutoActive) {
           apBtn.classList.add("active");
           apBtn.textContent = "🟢 الرادار التلقائي: مفعّل";
           apStateText.textContent = lastAutoScanStamp
-            ? `آخر فحص: ${lastAutoScanStamp} (22/22)`
-            : "يفحص 22/22 زوجاً عند إغلاق كل شمعة";
+            ? `آخر فحص: ${lastAutoScanStamp} (${mktTag})`
+            : `يفحص (${mktTag}) عند إغلاق كل شمعة`;
           apTimerEl.textContent = `متبقي: ${formatApTime(remainingSec)}`;
         } else {
           apBtn.classList.remove("active");
@@ -1171,10 +1328,11 @@
       async function runAutoScan() {
         if (!isAutoActive || isAutoScanning) return;
         isAutoScanning = true;
+        const mktTag = currentMarket === "otc" ? "OTC" : "22/22";
         document.getElementById("scanResults").innerHTML =
-          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe} — 22/22)...</div>`;
+          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe} — ${mktTag})...</div>`;
         try {
-          const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const url = `/api/scan?mode=auto&market=${encodeURIComponent(currentMarket)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error("Network error");
           const data = await resp.json();
@@ -1195,7 +1353,7 @@
             currentSymbol = first.symbol;
             pairSelect.value = currentSymbol;
             updateHeaderTitles();
-            connectFinnhub(currentSymbol);
+            if (currentMarket === "forex") connectFinnhub(currentSymbol);
             analyzeCurrentPair(true);
 
             const items = data.confirmed.map(c =>
@@ -1220,7 +1378,7 @@
         const m = now.getMinutes();
         const s = now.getSeconds();
         const bucketMin = m - (m % stepMin);
-        const candleKey = `${currentTimeframe}:${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}:${bucketMin}`;
+        const candleKey = `${currentMarket}:${currentTimeframe}:${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}:${bucketMin}`;
 
         if (m % stepMin === 0 && s >= 3 && s <= 50 && lastScannedCandleKey !== candleKey) {
           lastScannedCandleKey = candleKey;
@@ -1261,7 +1419,7 @@
               networkFailCount = 0;
               renderApUI();
               startApLoop();
-              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص 22/22 زوجاً تلقائياً عند إغلاق كل شمعة).", "#10b981");
+              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص السوق تلقائياً عند إغلاق كل شمعة).", "#10b981");
             }
           } catch (_) {
             showApToast("⚠️ تعذر الاتصال بالسيرفر لتفعيل الرادار.", "#ef4444");
