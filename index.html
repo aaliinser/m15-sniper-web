@@ -797,11 +797,19 @@
         } catch (_) {}
       }
 
+      // تحديث قائمة أزواج OTC كل 10 ثوانٍ
       setInterval(() => {
         if (currentMarket === "otc") {
           refreshOtcPairs(true);
         }
       }, 10000);
+
+      // تحديث السعر اللحظي والشموع في وضع OTC تلقائياً كل 3 ثوانٍ
+      setInterval(() => {
+        if (currentMarket === "otc" && currentSymbol && !document.hidden) {
+          analyzeCurrentPair(true);
+        }
+      }, 3000);
 
       btnMarketForex.addEventListener("click", () => {
         if (currentMarket === "forex") return;
@@ -1006,9 +1014,11 @@
         if (!currentSymbol) return;
         const signalBox = document.getElementById("signalBox");
         const signalReason = document.getElementById("signalReason");
-        signalBox.className = "signal-box";
-        signalBox.textContent = "⏳ جارٍ التحليل...";
-        signalReason.textContent = "يتم جلب أحدث الشموع وحساب المؤشرات...";
+        if (!silent) {
+          signalBox.className = "signal-box";
+          signalBox.textContent = "⏳ جارٍ التحليل...";
+          signalReason.textContent = "يتم جلب أحدث الشموع وحساب المؤشرات...";
+        }
 
         try {
           const url = `/api/analyze?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
@@ -1016,8 +1026,10 @@
           const data = await resp.json();
 
           if (!data.ok) {
-            signalBox.textContent = "⚠️ تنبيه";
-            signalReason.textContent = data.error || "تعذر جلب البيانات.";
+            if (!silent) {
+              signalBox.textContent = "⚠️ تنبيه";
+              signalReason.textContent = data.error || "تعذر جلب البيانات.";
+            }
             return;
           }
 
@@ -1054,8 +1066,10 @@
 
           drawChart();
         } catch (_) {
-          signalBox.textContent = "⚠️ خطأ اتصال";
-          signalReason.textContent = "تعذر الاتصال بالسيرفر، تأكد من الإنترنت وأعد المحاولة.";
+          if (!silent) {
+            signalBox.textContent = "⚠️ خطأ اتصال";
+            signalReason.textContent = "تعذر الاتصال بالسيرفر، تأكد من الإنترنت وأعد المحاولة.";
+          }
         }
       }
 
@@ -1134,8 +1148,11 @@
           });
         }
 
-        const stepX = plotW / candles.length;
-        const bodyW = Math.max(2, stepX * 0.62);
+        // ضبط عرض الشموع لتظهر بحجم طبيعي حتى عند وجود عدد قليل من الشموع
+        const visibleSlots = Math.max(candles.length, 30);
+        const stepX = plotW / visibleSlots;
+        const bodyW = Math.min(18, Math.max(2, stepX * 0.62));
+        const startOffset = (visibleSlots - candles.length) * stepX;
 
         function drawLine(key, color, width) {
           ctx.strokeStyle = color;
@@ -1144,7 +1161,7 @@
           let started = false;
           candles.forEach((c, i) => {
             if (c[key] == null) return;
-            const x = padL + i * stepX + stepX / 2;
+            const x = padL + startOffset + i * stepX + stepX / 2;
             const y = yOf(c[key]);
             if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
           });
@@ -1160,7 +1177,7 @@
         }
 
         candles.forEach((c, i) => {
-          const x = padL + i * stepX + stepX / 2;
+          const x = padL + startOffset + i * stepX + stepX / 2;
           const isUp = c.close >= c.open;
           const color = isUp ? "#10b981" : "#ef4444";
           ctx.strokeStyle = color;
