@@ -544,9 +544,9 @@
           <label for="strategySelect">الاستراتيجية المعتمدة</label>
           <select id="strategySelect">
             <option value="1">1. M15 Sniper PRO (الأساسية)</option>
-            <option value="2">2. مع الاتجاه (Trend Following)</option>
-            <option value="3">3. سكالبينج سريع (Scalp Reversal)</option>
-            <option value="4">4. الارتداد والبرايس أكشن (S/R)</option>
+            <option value="2">2. V1_Original (M15 → 30m | هدوء 22-08)</option>
+            <option value="3">3. S3_Calm_Plus_Day (M15 → 30m | 22-08 و 13-14)</option>
+            <option value="4">4. F4_Z2.5_R14_25 (M5 → 5m | 24 ساعة)</option>
             <option value="5">5. Stochastic Extreme Reversal (H1 / 9,5)</option>
           </select>
         </div>
@@ -768,8 +768,11 @@
         const tvSym = "FX:" + currentSymbol.replace("/", "");
         const tvInt = currentTimeframe === "1M" ? "1" : currentTimeframe === "5M" ? "5" : currentTimeframe === "1H" ? "60" : "15";
         let studies = ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
-        if (currentStrategy === "3") studies = ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
-        else if (currentStrategy === "5") studies = ["Stochastic@tv-basicstudies", "MAExp@tv-basicstudies"];
+        if (currentStrategy === "2" || currentStrategy === "3" || currentStrategy === "4") {
+          studies = ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
+        } else if (currentStrategy === "5") {
+          studies = ["Stochastic@tv-basicstudies", "MAExp@tv-basicstudies"];
+        }
         new TradingView.widget({
           autosize: true,
           symbol: tvSym,
@@ -1031,7 +1034,7 @@
 
       async function runManualScan() {
         const box = document.getElementById("scanResults");
-        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح 22/22 زوجاً (${currentTimeframe})...</div>`;
+        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح السوق (${currentTimeframe})...</div>`;
         try {
           const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
@@ -1148,8 +1151,8 @@
           apBtn.classList.add("active");
           apBtn.textContent = "🟢 الرادار التلقائي: مفعّل";
           apStateText.textContent = lastAutoScanStamp
-            ? `آخر فحص: ${lastAutoScanStamp} (22/22)`
-            : "يفحص 22/22 زوجاً عند إغلاق كل شمعة";
+            ? `آخر فحص: ${lastAutoScanStamp}`
+            : "يفحص السوق تلقائياً عند إغلاق كل شمعة";
           apTimerEl.textContent = `متبقي: ${formatApTime(remainingSec)}`;
         } else {
           apBtn.classList.remove("active");
@@ -1172,7 +1175,7 @@
         if (!isAutoActive || isAutoScanning) return;
         isAutoScanning = true;
         document.getElementById("scanResults").innerHTML =
-          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe} — 22/22)...</div>`;
+          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe})...</div>`;
         try {
           const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
@@ -1261,7 +1264,7 @@
               networkFailCount = 0;
               renderApUI();
               startApLoop();
-              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص 22/22 زوجاً تلقائياً عند إغلاق كل شمعة).", "#10b981");
+              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص السوق تلقائياً عند إغلاق كل شمعة).", "#10b981");
             }
           } catch (_) {
             showApToast("⚠️ تعذر الاتصال بالسيرفر لتفعيل الرادار.", "#ef4444");
