@@ -61,9 +61,9 @@ thread_local = threading.local()
 def get_http_session():
     if not hasattr(thread_local, "session"):
         s = requests.Session()
-        adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
+        adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/5.0-AI"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/5.1-AI"})
         thread_local.session = s
     return thread_local.session
 
@@ -171,7 +171,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             if now - cached_time < cached_ttl:
                 return cached_df.copy(), None
 
-    last_error = "تم الوصول للحد المؤقت للطلبات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
+    last_error = "تم الوصول للحد المؤقت للطلبات — أعد المحاولة بعد قليل."
     num_keys = len(TWELVE_DATA_KEYS)
     session = get_http_session()
     min_needed = 60 if outputsize < 200 else 205
@@ -188,7 +188,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             f"&apikey={api_key}&timezone=UTC"
         )
         try:
-            resp = session.get(url, timeout=12)
+            resp = session.get(url, timeout=8)
             if resp.status_code == 429:
                 mark_key_cooldown(idx, 55.0)
                 continue
@@ -365,7 +365,7 @@ def detect_sr_and_fib(closed_df, symbol):
 # ==========================================
 # 4. AI Agents Engine (Gemini 2.5 Flash)
 # ==========================================
-def call_gemini_json(prompt_text, timeout_sec=8):
+def call_gemini_json(prompt_text, timeout_sec=6):
     if not GEMINI_API_KEY:
         return None
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
@@ -417,7 +417,7 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
         '"judge_note": "قرار القاضي النهائي في جملة واحدة"}'
     )
 
-    res = call_gemini_json(prompt, timeout_sec=8)
+    res = call_gemini_json(prompt, timeout_sec=6)
     if not isinstance(res, dict) or "verdict" not in res:
         return {
             "verdict": "HALF RISK",
@@ -521,7 +521,7 @@ def run_agent_correlation_assassin(signals_list):
             "وارجع JSON فقط بالشكل:\n"
             '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
         )
-        ai_res = call_gemini_json(prompt, timeout_sec=6)
+        ai_res = call_gemini_json(prompt, timeout_sec=5)
         if isinstance(ai_res, dict) and isinstance(ai_res.get("keep_symbols"), list):
             ai_keep = {normalize_symbol(sym) for sym in ai_res["keep_symbols"] if isinstance(sym, str) and sym.strip()}
             ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
@@ -538,7 +538,6 @@ def run_agent_correlation_assassin(signals_list):
             if kept:
                 return kept, killed
 
-    # التصفية الرياضية الصارمة كخطة احتياطية فورية (بقوائم نظيفة)
     kept, killed, used_currencies = [], [], set()
     for item in ordered:
         currs = get_currencies(item["symbol"])
@@ -748,7 +747,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
 def scan_single_pair(sym, timeframe, strategy):
     df, err = fetch_candles(sym, timeframe)
     if err or df is None:
-        return None
+        return sym, {"signal": "WAIT", "reason": err or "تعذر جلب البيانات", "confidence": 0, "strength": 0.0, "live_price": 0.0}, pd.DataFrame()
     closed_df, live_price = filter_closed_candles(df, timeframe)
     closed_df = calculate_indicators(closed_df)
     res = evaluate_strategy(closed_df, live_price, sym, strategy)
@@ -880,20 +879,19 @@ def api_scan(
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
             })
 
-    if strat_id in ("2", "3"):
-        target_pairs = [p for p in PAIRS_22 if "JPY" not in p]
-    else:
-        target_pairs = PAIRS_22
+    # فحص جميع الأزواج الـ 22 دفعة واحدة
+    target_pairs = list(PAIRS_22)
 
     raw_confirmed = []
+    all_pairs_status = []
     closed_map = {}
     scanned_count = 0
 
-    with ThreadPoolExecutor(max_workers=6) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(scan_single_pair, sym, tf, strat_id): sym for sym in target_pairs}
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=35):
             try:
-                outcome = future.result()
+                outcome = future.result(timeout=10)
             except Exception:
                 continue
             if outcome is None:
@@ -901,7 +899,14 @@ def api_scan(
             sym, res, c_df = outcome
             scanned_count += 1
 
-            if res["signal"] in ("CALL", "PUT"):
+            all_pairs_status.append({
+                "symbol": sym,
+                "signal": res.get("signal", "WAIT"),
+                "price": res.get("live_price", 0.0),
+                "reason": res.get("reason", "")
+            })
+
+            if res.get("signal") in ("CALL", "PUT") and len(c_df) > 0:
                 closed_map[sym] = (c_df, res)
                 raw_confirmed.append({
                     "symbol": sym,
@@ -913,6 +918,7 @@ def api_scan(
                 })
 
     raw_confirmed.sort(key=lambda x: x["strength"], reverse=True)
+    all_pairs_status.sort(key=lambda x: x["symbol"])
     killed_by_corr = []
 
     if agent_corr == 1 and len(raw_confirmed) > 1:
@@ -936,11 +942,12 @@ def api_scan(
 
     for item in confirmed[:3]:
         sym = item["symbol"]
-        c_df, full_res = closed_map[sym]
-        if agent_mtf == 1:
-            item["mtf"] = run_agent_mtf_guard(sym, tf, c_df, full_res)
-        if agent_court == 1:
-            item["court"] = run_agent_court(sym, tf, c_df, full_res)
+        if sym in closed_map:
+            c_df, full_res = closed_map[sym]
+            if agent_mtf == 1:
+                item["mtf"] = run_agent_mtf_guard(sym, tf, c_df, full_res)
+            if agent_court == 1:
+                item["court"] = run_agent_court(sym, tf, c_df, full_res)
 
     return JSONResponse({
         "ok": True,
@@ -948,7 +955,8 @@ def api_scan(
         "scanned": scanned_count,
         "total": len(target_pairs),
         "confirmed": confirmed,
-        "killed_by_corr": killed_by_corr
+        "killed_by_corr": killed_by_corr,
+        "pairs_summary": all_pairs_status
     })
 
 if __name__ == "__main__":
