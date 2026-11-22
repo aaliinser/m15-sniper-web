@@ -1,4 +1,6 @@
 import os
+import re
+import json
 import time
 import datetime
 import threading
@@ -22,8 +24,9 @@ TWELVE_DATA_KEYS = [
     "5c929836e14d412182bbc5fce8f61b70"
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = "gemini-2.5-flash"
 
-UTC_TZ = datetime.timezone.utc
 try:
     DISPLAY_TZ = ZoneInfo("Asia/Hebron")
 except Exception:
@@ -60,7 +63,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/4.0"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/5.0-AI"})
         thread_local.session = s
     return thread_local.session
 
@@ -144,7 +147,7 @@ def check_autopilot_state():
         return active, remaining
 
 # ==========================================
-# 2. Fetch Candles (UTC End-to-End, 300 Warm-up Candles)
+# 2. Fetch Candles (UTC End-to-End)
 # ==========================================
 def fetch_candles(symbol, timeframe="15M", outputsize=300):
     symbol = normalize_symbol(symbol)
@@ -156,7 +159,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
     ttl = CACHE_TTL_BY_TF.get(tf_upper, 120)
     now = time.time()
     current_bucket = int(now // tf_sec)
-    cache_key = f"{symbol}_{interval}_{current_bucket}"
+    cache_key = f"{symbol}_{interval}_{outputsize}_{current_bucket}"
 
     cleanup_cache(now)
 
@@ -169,6 +172,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
     last_error = "تم الوصول للحد المؤقت للطلبات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
     num_keys = len(TWELVE_DATA_KEYS)
     session = get_http_session()
+    min_needed = 60 if outputsize < 200 else 205
 
     for _ in range(num_keys):
         idx = get_available_key_index(time.time())
@@ -197,7 +201,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
                 return None, f"تنبيه من مزود البيانات: {msg or 'خطأ غير معروف'}"
 
             values = data.get("values")
-            if not values or len(values) < 205:
+            if not values or len(values) < min_needed:
                 return None, "بيانات الشموع غير كافية لحساب المؤشرات بدقة."
 
             df = pd.DataFrame(values)
@@ -206,7 +210,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             df["open_dt_utc"] = pd.to_datetime(df["datetime"], utc=True, errors="coerce")
             df = df.dropna(subset=["open", "high", "low", "close", "open_dt_utc"])
 
-            if len(df) < 205:
+            if len(df) < min_needed:
                 return None, "البيانات الرقمية للشموع غير صالحة."
 
             df["open_ts"] = (df["open_dt_utc"].astype("datetime64[ns, UTC]").astype("int64") // 10**9).astype(int)
@@ -223,7 +227,6 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
     return None, last_error
 
 def filter_closed_candles(df, timeframe):
-    """Strictly drop any in-progress candle where open_ts + tf_sec > now_utc."""
     tf_sec = TIMEFRAME_SECONDS.get(str(timeframe).upper(), 900)
     now_ts = time.time()
     live_price = float(df["close"].iloc[-1])
@@ -231,15 +234,14 @@ def filter_closed_candles(df, timeframe):
     return closed_df, live_price
 
 # ==========================================
-# 3. Audited Indicators (Strict Closed Candles)
+# 3. Audited Indicators
 # ==========================================
 def calculate_indicators(closed_df):
     df = closed_df.copy()
     if len(df) == 0:
         for col in [
             "bb_mid", "bb_upper", "bb_lower", "bb20_upper", "bb20_lower",
-            "zscore", "ema200", "ema50", "ema20", "rsi", "rsi7", "atr",
-            "adx", "stoch_k", "stoch_d"
+            "zscore", "ema200", "rsi", "rsi7", "atr", "adx", "stoch_k", "stoch_d"
         ]:
             df[col] = np.nan
         return df
@@ -248,29 +250,24 @@ def calculate_indicators(closed_df):
     high = df["high"]
     low = df["low"]
 
-    # Bollinger Bands (15, 2.0, ddof=0) - Strategy 1 & Strategy 3
     sma15 = close.rolling(window=15, min_periods=15).mean()
     std15 = close.rolling(window=15, min_periods=15).std(ddof=0)
     df["bb_mid"] = sma15
     df["bb_upper"] = sma15 + (2.0 * std15)
     df["bb_lower"] = sma15 - (2.0 * std15)
 
-    # Bollinger Bands (20, 2.0) & Z-Score (20) - Strategy 2 & Strategy 4
     sma20 = close.rolling(window=20, min_periods=20).mean()
     std20 = close.rolling(window=20, min_periods=20).std()
     df["bb20_upper"] = sma20 + (2.0 * std20)
     df["bb20_lower"] = sma20 - (2.0 * std20)
     df["zscore"] = (close - sma20) / std20.replace(0.0, np.nan)
 
-    # EMAs
     df["ema200"] = close.ewm(span=200, min_periods=200, adjust=False).mean()
-    df["ema50"] = close.ewm(span=50, min_periods=50, adjust=False).mean()
-    df["ema20"] = close.ewm(span=20, min_periods=20, adjust=False).mean()
 
-    # Wilder RSI (14) - Strategy 1, 3, 4
     delta = close.diff()
     gain = delta.clip(lower=0.0)
     loss = (-delta.clip(upper=0.0))
+
     avg_gain14 = gain.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
     avg_loss14 = loss.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
     rs14 = avg_gain14 / avg_loss14.replace(0.0, np.nan)
@@ -278,7 +275,6 @@ def calculate_indicators(closed_df):
     df.loc[(avg_loss14 == 0.0) & (avg_gain14 > 0.0), "rsi"] = 100.0
     df.loc[(avg_loss14 == 0.0) & (avg_gain14 == 0.0), "rsi"] = 50.0
 
-    # Wilder RSI (7) - Strategy 2 (V1_Original)
     avg_gain7 = gain.ewm(alpha=1.0 / 7.0, min_periods=7, adjust=False).mean()
     avg_loss7 = loss.ewm(alpha=1.0 / 7.0, min_periods=7, adjust=False).mean()
     rs7 = avg_gain7 / avg_loss7.replace(0.0, np.nan)
@@ -286,7 +282,6 @@ def calculate_indicators(closed_df):
     df.loc[(avg_loss7 == 0.0) & (avg_gain7 > 0.0), "rsi7"] = 100.0
     df.loc[(avg_loss7 == 0.0) & (avg_gain7 == 0.0), "rsi7"] = 50.0
 
-    # Wilder ATR (14) & ADX (14)
     prev_close = close.shift(1)
     tr = pd.concat([
         high - low,
@@ -306,7 +301,6 @@ def calculate_indicators(closed_df):
     dx = 100.0 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0.0, np.nan)
     df["adx"] = dx.ewm(alpha=1.0 / 14.0, min_periods=14, adjust=False).mean()
 
-    # Strategy 5: Stochastic Oscillator (%K=9, %D=5)
     lowest_low = low.rolling(window=9, min_periods=9).min()
     highest_high = high.rolling(window=9, min_periods=9).max()
     denom = (highest_high - lowest_low).replace(0.0, np.nan)
@@ -332,7 +326,7 @@ def detect_sr_and_fib(closed_df, symbol):
         "1.0": round(swing_low, decimals),
     }
 
-    atr_raw = closed_df["atr"].iloc[-1]
+    atr_raw = closed_df["atr"].iloc[-1] if "atr" in closed_df.columns else np.nan
     atr_val = float(atr_raw) if not pd.isna(atr_raw) else (diff * 0.02)
     min_tol = 0.015 if "JPY" in symbol else 0.00015
     tol = max(atr_val * 0.35, min_tol)
@@ -355,6 +349,189 @@ def detect_sr_and_fib(closed_df, symbol):
 
     return resistances, supports, fib_levels
 
+# ==========================================
+# 4. AI Agents Engine (Gemini 2.5 Flash)
+# ==========================================
+def call_gemini_json(prompt_text, timeout_sec=8):
+    if not GEMINI_API_KEY:
+        return None
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt_text}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json"
+        }
+    }
+    try:
+        session = get_http_session()
+        resp = session.post(url, json=payload, timeout=timeout_sec)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
+        return json.loads(text)
+    except Exception:
+        return None
+
+def run_agent_court(symbol, timeframe, closed_df, analysis):
+    """Agent 1: محكمة الصفقة (Sniper vs Trap Hunter -> Judge)"""
+    if analysis["signal"] not in ("CALL", "PUT"):
+        return None
+
+    last_candles = []
+    for _, r in closed_df.tail(8).iterrows():
+        last_candles.append({
+            "o": round(float(r["open"]), 5),
+            "h": round(float(r["high"]), 5),
+            "l": round(float(r["low"]), 5),
+            "c": round(float(r["close"]), 5)
+        })
+
+    prompt = (
+        f"أنت نظام محكمة تداول كمي من 3 وكلاء لصفقة خيارات ثنائية على {symbol} فريم {timeframe}.\n"
+        f"الإشارة المقترحة: {analysis['signal']} | السبب الفني: {analysis['reason']}\n"
+        f"السعر الحالي: {analysis['live_price']} | EMA200: {analysis.get('ema200')} | "
+        f"BB Upper: {analysis.get('bb_upper')} | BB Lower: {analysis.get('bb_lower')}\n"
+        f"أقرب مقاومات: {analysis.get('resistances')} | أقرب دعوم: {analysis.get('supports')}\n"
+        f"آخر 8 شموع مغلقة: {json.dumps(last_candles)}\n\n"
+        "أرجع JSON فقط بهذه المفاتيح بالضبط وباللغة العربية المختصرة:\n"
+        '{"sniper": "مرافعة القناص المؤيدة في جملة قصيرة", '
+        '"trap_hunter": "مرافعة صائد الفخوخ المحذرة في جملة قصيرة", '
+        '"verdict": "A+ APPROVED أو HALF RISK أو VETO / TRAP", '
+        '"judge_note": "قرار القاضي النهائي في جملة واحدة"}'
+    )
+
+    res = call_gemini_json(prompt, timeout_sec=8)
+    if not res or "verdict" not in res:
+        return {
+            "verdict": "HALF RISK",
+            "sniper": "الإشارة مطابقة لشروط الاستراتيجية الكمية.",
+            "trap_hunter": "تعذر الاتصال بمحرك Gemini لحظياً — يُنصح بالحذر.",
+            "judge_note": "حكم احتياطي تلقائي بسبب تأخر استجابة الـ API."
+        }
+    return {
+        "verdict": str(res.get("verdict", "HALF RISK")).upper(),
+        "sniper": str(res.get("sniper", "")),
+        "trap_hunter": str(res.get("trap_hunter", "")),
+        "judge_note": str(res.get("judge_note", ""))
+    }
+
+def run_agent_mtf_guard(symbol, timeframe, closed_df, analysis):
+    """Agent 2: حارس فريم الساعة والأرقام النفسية (MTF Liquidity & Round-Number Guard)"""
+    if analysis["signal"] not in ("CALL", "PUT"):
+        return None
+
+    price = float(analysis["live_price"])
+    is_jpy = "JPY" in symbol
+    decimals = 3 if is_jpy else 5
+    pip_size = 0.01 if is_jpy else 0.0001
+    step = 0.50 if is_jpy else 0.0050
+
+    nearest_round = round(round(price / step) * step, decimals)
+    dist_round_pips = round(abs(price - nearest_round) / pip_size, 1)
+
+    direction = analysis["signal"]
+    round_ahead = (direction == "CALL" and nearest_round > price) or (direction == "PUT" and nearest_round < price)
+
+    h1_wall_info = "لم يتم فحص جدار الساعة"
+    h1_wall_blocked = False
+
+    if timeframe != "1H":
+        h1_df, err = fetch_candles(symbol, "1H", outputsize=120)
+        if not err and h1_df is not None and len(h1_df) >= 30:
+            h1_closed, _ = filter_closed_candles(h1_df, "1H")
+            if len(h1_closed) >= 20:
+                res_1h, sup_1h, _ = detect_sr_and_fib(h1_closed, symbol)
+                if direction == "CALL" and res_1h:
+                    wall = res_1h[0]["price"]
+                    dist_pips = round((wall - price) / pip_size, 1)
+                    h1_wall_info = f"مقاومة 1H عند {wall} (تبعد {dist_pips} نقطة)"
+                    if dist_pips <= 6.0:
+                        h1_wall_blocked = True
+                elif direction == "PUT" and sup_1h:
+                    wall = sup_1h[0]["price"]
+                    dist_pips = round((price - wall) / pip_size, 1)
+                    h1_wall_info = f"دعم 1H عند {wall} (يبعد {dist_pips} نقطة)"
+                    if dist_pips <= 6.0:
+                        h1_wall_blocked = True
+                else:
+                    h1_wall_info = "طريق فريم الساعة (1H) مفتوح بدون جدار قريب"
+
+    if h1_wall_blocked or (round_ahead and dist_round_pips <= 4.0):
+        status = "BLOCKED"
+        summary = f"⛔ جدار قريب أمام السعر! رقم نفسي {nearest_round} (يبعد {dist_round_pips} نقطة) | {h1_wall_info}"
+    elif round_ahead and dist_round_pips <= 10.0:
+        status = "CAUTION"
+        summary = f"⚠️ انتباه: رقم نفسي {nearest_round} أمام السعر ({dist_round_pips} نقطة) | {h1_wall_info}"
+    else:
+        status = "CLEAR"
+        summary = f"✅ الطريق مفتوح (إشارة ذهبية) | أقرب رقم نفسي {nearest_round} ({dist_round_pips} نقطة) | {h1_wall_info}"
+
+    return {
+        "status": status,
+        "nearest_round": nearest_round,
+        "dist_round_pips": dist_round_pips,
+        "h1_wall": h1_wall_info,
+        "summary": summary
+    }
+
+def run_agent_correlation_assassin(signals_list):
+    """Agent 3: صائد الارتباطات ومنع الفخ المزدوج (Correlation & Exposure Assassin)"""
+    if len(signals_list) <= 1:
+        return signals_list, []
+
+    kept = []
+    killed = []
+    used_currencies = set()
+
+    # إذا توفر Gemini نطلب منه ترتيب الأزواج حسب أنظف هيكل، وإلا نعتمد على strength
+    ordered = sorted(signals_list, key=lambda x: x.get("strength", 0.0), reverse=True)
+
+    if GEMINI_API_KEY and len(ordered) >= 2:
+        brief = [
+            {"symbol": s["symbol"], "signal": s["signal"], "confidence": s["confidence"], "strength": s.get("strength", 0), "reason": s["reason"]}
+            for s in ordered
+        ]
+        prompt = (
+            "أنت وكيل إدارة مخاطر وارتباطات فوركس. هذه إشارات ظهرت في نفس الشمعة:\n"
+            f"{json.dumps(brief, ensure_ascii=False)}\n"
+            "اختر أفضل الأزواج التي لا تشترك في نفس العملة (ممنوع تكرار USD أو EUR أو GBP أو JPY في أكثر من صفقة)، "
+            "وارجع JSON فقط بالشكل:\n"
+            '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
+        )
+        ai_res = call_gemini_json(prompt, timeout_sec=6)
+        if ai_res and isinstance(ai_res.get("keep_symbols"), list):
+            ai_keep = set(ai_res["keep_symbols"])
+            ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
+            for item in ordered:
+                currs = get_currencies(item["symbol"])
+                if item["symbol"] in ai_keep and not (currs & used_currencies):
+                    used_currencies |= currs
+                    item["corr_note"] = ai_note
+                    kept.append(item)
+                else:
+                    item["killed_reason"] = f"تم استبعاده لتداخل العملات ({ai_note})"
+                    killed.append(item)
+            if kept:
+                return kept, killed
+
+    # التصفية الرياضية الصارمة كخطة احتياطية فورية
+    for item in ordered:
+        currs = get_currencies(item["symbol"])
+        if currs & used_currencies:
+            item["killed_reason"] = "تداخل عملة مع إشارة أقوى في نفس الشمعة"
+            killed.append(item)
+        else:
+            used_currencies |= currs
+            kept.append(item)
+
+    return kept, killed
+
+# ==========================================
+# 5. Strategy Evaluation
+# ==========================================
 def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
     strategy_id = normalize_strategy(strategy_id)
@@ -371,8 +548,8 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
             "resistances": [], "supports": [], "fib": {}
         }
 
-    c = closed_df.iloc[-1]     # Strictly last CLOSED candle
-    prev = closed_df.iloc[-2]  # Previous CLOSED candle
+    c = closed_df.iloc[-1]
+    prev = closed_df.iloc[-2]
 
     required_cols = []
     if strategy_id == "1":
@@ -418,7 +595,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     confidence = 0
     strength = 0.0
 
-    if strategy_id == "1":  # Smart Rejection Engine (BB 15/2.0 + EMA 200 + ATR + RSI)
+    if strategy_id == "1":
         candle_range = max(high_p - low_p, 1e-9)
         body_size = abs(close_p - open_p)
         lower_wick = min(open_p, close_p) - low_p
@@ -448,7 +625,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         else:
             reason = "بانتظار إغلاق أو ذيل رفض عند BB(15, 2.0) مع توافق EMA 200"
 
-    elif strategy_id == "2":  # V1_Original (Calm Hours Mean Reversion | M15 -> 30m)
+    elif strategy_id == "2":
         bb20_u = float(c["bb20_upper"])
         bb20_l = float(c["bb20_lower"])
         rsi7 = float(c["rsi7"])
@@ -474,7 +651,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         else:
             reason = f"مراقبة V1_Original (RSI7={rsi7:.1f} | ADX={adx:.1f} | انتهاء 30 دقيقة)"
 
-    elif strategy_id == "3":  # S3_Calm_Plus_Day (M15 -> 30m)
+    elif strategy_id == "3":
         adx = float(c["adx"])
         if "JPY" in symbol:
             reason = "استراتيجية S3_Calm_Plus_Day تستبعد أزواج الين (JPY)."
@@ -495,7 +672,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         else:
             reason = f"مراقبة S3_Calm_Plus_Day (RSI14={rsi:.1f} | ADX={adx:.1f} | انتهاء 30 دقيقة)"
 
-    elif strategy_id == "4":  # F4_Z2.5_R14_25 (M5 -> 5m | 24 Hours | All Pairs)
+    elif strategy_id == "4":
         zscore = float(c["zscore"])
         adx = float(c["adx"])
         if adx >= 25.0:
@@ -513,7 +690,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         else:
             reason = f"مراقبة F4 (Z-Score={zscore:.2f} | RSI14={rsi:.1f} | ADX={adx:.1f} | انتهاء 5 دقائق)"
 
-    elif strategy_id == "5":  # H1 Stochastic Extreme Reversal (K=9, D=5, 10/90 + EMA200)
+    elif strategy_id == "5":
         k_curr = float(c["stoch_k"])
         d_curr = float(c["stoch_d"])
         k_prev = float(prev["stoch_k"])
@@ -553,10 +730,10 @@ def scan_single_pair(sym, timeframe, strategy):
     closed_df, live_price = filter_closed_candles(df, timeframe)
     closed_df = calculate_indicators(closed_df)
     res = evaluate_strategy(closed_df, live_price, sym, strategy)
-    return sym, res
+    return sym, res, closed_df
 
 # ==========================================
-# 4. Autopilot Routes (6 Hours)
+# 6. Autopilot Routes
 # ==========================================
 @app.api_route("/api/autopilot/start", methods=["GET", "POST"])
 @app.api_route("/autopilot/start", methods=["GET", "POST"])
@@ -594,7 +771,7 @@ def api_autopilot_status():
     })
 
 # ==========================================
-# 5. Main API & Frontend Routes
+# 7. Main API & Frontend Routes
 # ==========================================
 @app.get("/")
 def index():
@@ -605,7 +782,9 @@ def index():
 def api_analyze(
     symbol: str = Query(default="EUR/USD"),
     timeframe: str = Query(default="15M"),
-    strategy: str = Query(default="1")
+    strategy: str = Query(default="1"),
+    agent_court: int = Query(default=0),
+    agent_mtf: int = Query(default=0)
 ):
     sym = normalize_symbol(symbol)
     tf = str(timeframe).upper()
@@ -619,6 +798,16 @@ def api_analyze(
     closed_df, live_price = filter_closed_candles(df, tf)
     closed_df = calculate_indicators(closed_df)
     analysis = evaluate_strategy(closed_df, live_price, sym, strat_id)
+
+    # تشغيل الوكلاء المفعّلين فقط عند صدور إشارة CALL أو PUT
+    agents_report = {}
+    if analysis["signal"] in ("CALL", "PUT"):
+        if agent_mtf == 1:
+            agents_report["mtf"] = run_agent_mtf_guard(sym, tf, closed_df, analysis)
+        if agent_court == 1:
+            agents_report["court"] = run_agent_court(sym, tf, closed_df, analysis)
+
+    analysis["agents"] = agents_report
 
     bb_u_col = "bb20_upper" if strat_id == "2" else "bb_upper"
     bb_l_col = "bb20_lower" if strat_id == "2" else "bb_lower"
@@ -652,7 +841,10 @@ def api_analyze(
 def api_scan(
     timeframe: str = Query(default="15M"),
     strategy: str = Query(default="1"),
-    mode: str = Query(default="manual")
+    mode: str = Query(default="manual"),
+    agent_court: int = Query(default=0),
+    agent_mtf: int = Query(default=0),
+    agent_corr: int = Query(default=0)
 ):
     tf = str(timeframe).upper()
     m = str(mode).strip().lower()
@@ -667,13 +859,13 @@ def api_scan(
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
             })
 
-    # استبعاد أزواج الين (JPY) تلقائياً في الاستراتيجيتين 2 و 3
     if strat_id in ("2", "3"):
         target_pairs = [p for p in PAIRS_22 if "JPY" not in p]
     else:
         target_pairs = PAIRS_22
 
     raw_confirmed = []
+    closed_map = {}
     scanned_count = 0
 
     with ThreadPoolExecutor(max_workers=6) as executor:
@@ -685,10 +877,11 @@ def api_scan(
                 continue
             if outcome is None:
                 continue
-            sym, res = outcome
+            sym, res, c_df = outcome
             scanned_count += 1
 
             if res["signal"] in ("CALL", "PUT"):
+                closed_map[sym] = (c_df, res)
                 raw_confirmed.append({
                     "symbol": sym,
                     "signal": res["signal"],
@@ -698,11 +891,13 @@ def api_scan(
                     "price": res["live_price"]
                 })
 
-    # ترتيب الإشارات من الأقوى إلى الأقل
     raw_confirmed.sort(key=lambda x: x["strength"], reverse=True)
+    killed_by_corr = []
 
-    # تطبيق قفل Cap_2_NoOverlap على الاستراتيجيتين 2 و 3
-    if strat_id in ("2", "3"):
+    # وكيل 3: صائد الارتباطات (إذا تم تفعيله) أو قفل Cap_2_NoOverlap للاستراتيجيتين 2 و 3
+    if agent_corr == 1 and len(raw_confirmed) > 1:
+        confirmed, killed_by_corr = run_agent_correlation_assassin(raw_confirmed)
+    elif strat_id in ("2", "3"):
         confirmed = []
         used_currencies = set()
         for item in raw_confirmed:
@@ -716,12 +911,22 @@ def api_scan(
     else:
         confirmed = raw_confirmed
 
+    # تشغيل وكيل 1 ووكيل 2 على الإشارات الناجية فقط (بحد أقصى أول 3 إشارات للحفاظ على السرعة)
+    for item in confirmed[:3]:
+        sym = item["symbol"]
+        c_df, full_res = closed_map[sym]
+        if agent_mtf == 1:
+            item["mtf"] = run_agent_mtf_guard(sym, tf, c_df, full_res)
+        if agent_court == 1:
+            item["court"] = run_agent_court(sym, tf, c_df, full_res)
+
     return JSONResponse({
         "ok": True,
         "mode": m,
         "scanned": scanned_count,
         "total": len(target_pairs),
-        "confirmed": confirmed
+        "confirmed": confirmed,
+        "killed_by_corr": killed_by_corr
     })
 
 if __name__ == "__main__":
