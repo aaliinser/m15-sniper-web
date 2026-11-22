@@ -94,6 +94,10 @@ def normalize_symbol(raw_sym):
         sym = f"{sym[:3]}/{sym[3:]}"
     return sym
 
+def normalize_timeframe(raw_tf):
+    tf = str(raw_tf or "15M").strip().upper()
+    return tf if tf in TIMEFRAME_MAP else "15M"
+
 def get_currencies(symbol):
     clean = str(symbol).replace("/", "").upper()
     return {clean[:3], clean[3:6]} if len(clean) >= 6 else set()
@@ -151,9 +155,7 @@ def check_autopilot_state():
 # ==========================================
 def fetch_candles(symbol, timeframe="15M", outputsize=300):
     symbol = normalize_symbol(symbol)
-    tf_upper = str(timeframe or "15M").strip().upper()
-    if tf_upper not in TIMEFRAME_MAP:
-        tf_upper = "15M"
+    tf_upper = normalize_timeframe(timeframe)
     interval = TIMEFRAME_MAP[tf_upper]
     tf_sec = TIMEFRAME_SECONDS[tf_upper]
     ttl = CACHE_TTL_BY_TF.get(tf_upper, 120)
@@ -192,6 +194,9 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
                 continue
 
             data = resp.json()
+            if not isinstance(data, dict):
+                continue
+
             if data.get("status") == "error":
                 code = data.get("code", 0)
                 msg = str(data.get("message", ""))
@@ -213,8 +218,11 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             if len(df) < min_needed:
                 return None, "البيانات الرقمية للشموع غير صالحة."
 
-            df["open_ts"] = (df["open_dt_utc"].astype("datetime64[ns, UTC]").astype("int64") // 10**9).astype(int)
-            df = df.sort_values("open_ts").reset_index(drop=True)
+            df["open_ts"] = [int(ts.timestamp()) for ts in df["open_dt_utc"]]
+            df = df.drop_duplicates(subset=["open_ts"]).sort_values("open_ts").reset_index(drop=True)
+
+            if len(df) < min_needed:
+                return None, "بيانات الشموع غير كافية بعد إزالة التكرار."
 
             with cache_lock:
                 CACHE_STORE[cache_key] = (time.time(), ttl, df.copy())
@@ -227,7 +235,9 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
     return None, last_error
 
 def filter_closed_candles(df, timeframe):
-    tf_sec = TIMEFRAME_SECONDS.get(str(timeframe).upper(), 900)
+    if df is None or len(df) == 0:
+        return pd.DataFrame(), 0.0
+    tf_sec = TIMEFRAME_SECONDS.get(normalize_timeframe(timeframe), 900)
     now_ts = time.time()
     live_price = float(df["close"].iloc[-1])
     closed_df = df[(df["open_ts"] + tf_sec) <= now_ts].copy().reset_index(drop=True)
@@ -310,6 +320,9 @@ def calculate_indicators(closed_df):
     return df
 
 def detect_sr_and_fib(closed_df, symbol):
+    if closed_df is None or len(closed_df) == 0:
+        return [], [], {}
+
     decimals = get_price_decimals(symbol)
     recent = closed_df.tail(120)
     swing_high = float(recent["high"].max())
@@ -371,7 +384,8 @@ def call_gemini_json(prompt_text, timeout_sec=8):
         data = resp.json()
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
-        return json.loads(text)
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
     except Exception:
         return None
 
@@ -404,7 +418,7 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
     )
 
     res = call_gemini_json(prompt, timeout_sec=8)
-    if not res or "verdict" not in res:
+    if not isinstance(res, dict) or "verdict" not in res:
         return {
             "verdict": "HALF RISK",
             "sniper": "الإشارة مطابقة لشروط الاستراتيجية الكمية.",
@@ -435,29 +449,34 @@ def run_agent_mtf_guard(symbol, timeframe, closed_df, analysis):
     direction = analysis["signal"]
     round_ahead = (direction == "CALL" and nearest_round > price) or (direction == "PUT" and nearest_round < price)
 
-    h1_wall_info = "لم يتم فحص جدار الساعة"
+    h1_wall_info = "طريق فريم الساعة (1H) مفتوح بدون جدار قريب"
     h1_wall_blocked = False
 
-    if timeframe != "1H":
+    res_1h, sup_1h = [], []
+    if timeframe == "1H":
+        res_1h = analysis.get("resistances") or []
+        sup_1h = analysis.get("supports") or []
+    else:
         h1_df, err = fetch_candles(symbol, "1H", outputsize=120)
         if not err and h1_df is not None and len(h1_df) >= 30:
             h1_closed, _ = filter_closed_candles(h1_df, "1H")
             if len(h1_closed) >= 20:
                 res_1h, sup_1h, _ = detect_sr_and_fib(h1_closed, symbol)
-                if direction == "CALL" and res_1h:
-                    wall = res_1h[0]["price"]
-                    dist_pips = round((wall - price) / pip_size, 1)
-                    h1_wall_info = f"مقاومة 1H عند {wall} (تبعد {dist_pips} نقطة)"
-                    if dist_pips <= 6.0:
-                        h1_wall_blocked = True
-                elif direction == "PUT" and sup_1h:
-                    wall = sup_1h[0]["price"]
-                    dist_pips = round((price - wall) / pip_size, 1)
-                    h1_wall_info = f"دعم 1H عند {wall} (يبعد {dist_pips} نقطة)"
-                    if dist_pips <= 6.0:
-                        h1_wall_blocked = True
-                else:
-                    h1_wall_info = "طريق فريم الساعة (1H) مفتوح بدون جدار قريب"
+        else:
+            h1_wall_info = "لم يتم فحص جدار الساعة مؤقتاً"
+
+    if direction == "CALL" and res_1h:
+        wall = res_1h[0]["price"]
+        dist_pips = round((wall - price) / pip_size, 1)
+        h1_wall_info = f"مقاومة 1H عند {wall} (تبعد {dist_pips} نقطة)"
+        if dist_pips <= 6.0:
+            h1_wall_blocked = True
+    elif direction == "PUT" and sup_1h:
+        wall = sup_1h[0]["price"]
+        dist_pips = round((price - wall) / pip_size, 1)
+        h1_wall_info = f"دعم 1H عند {wall} (يبعد {dist_pips} نقطة)"
+        if dist_pips <= 6.0:
+            h1_wall_blocked = True
 
     if h1_wall_blocked or (round_ahead and dist_round_pips <= 4.0):
         status = "BLOCKED"
@@ -482,16 +501,17 @@ def run_agent_correlation_assassin(signals_list):
     if len(signals_list) <= 1:
         return signals_list, []
 
-    kept = []
-    killed = []
-    used_currencies = set()
-
-    # إذا توفر Gemini نطلب منه ترتيب الأزواج حسب أنظف هيكل، وإلا نعتمد على strength
     ordered = sorted(signals_list, key=lambda x: x.get("strength", 0.0), reverse=True)
 
     if GEMINI_API_KEY and len(ordered) >= 2:
         brief = [
-            {"symbol": s["symbol"], "signal": s["signal"], "confidence": s["confidence"], "strength": s.get("strength", 0), "reason": s["reason"]}
+            {
+                "symbol": s["symbol"],
+                "signal": s["signal"],
+                "confidence": s["confidence"],
+                "strength": s.get("strength", 0),
+                "reason": s["reason"]
+            }
             for s in ordered
         ]
         prompt = (
@@ -502,9 +522,10 @@ def run_agent_correlation_assassin(signals_list):
             '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
         )
         ai_res = call_gemini_json(prompt, timeout_sec=6)
-        if ai_res and isinstance(ai_res.get("keep_symbols"), list):
-            ai_keep = set(ai_res["keep_symbols"])
+        if isinstance(ai_res, dict) and isinstance(ai_res.get("keep_symbols"), list):
+            ai_keep = {normalize_symbol(sym) for sym in ai_res["keep_symbols"] if isinstance(sym, str) and sym.strip()}
             ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
+            kept, killed, used_currencies = [], [], set()
             for item in ordered:
                 currs = get_currencies(item["symbol"])
                 if item["symbol"] in ai_keep and not (currs & used_currencies):
@@ -517,7 +538,8 @@ def run_agent_correlation_assassin(signals_list):
             if kept:
                 return kept, killed
 
-    # التصفية الرياضية الصارمة كخطة احتياطية فورية
+    # التصفية الرياضية الصارمة كخطة احتياطية فورية (بقوائم نظيفة)
+    kept, killed, used_currencies = [], [], set()
     for item in ordered:
         currs = get_currencies(item["symbol"])
         if currs & used_currencies:
@@ -787,7 +809,7 @@ def api_analyze(
     agent_mtf: int = Query(default=0)
 ):
     sym = normalize_symbol(symbol)
-    tf = str(timeframe).upper()
+    tf = normalize_timeframe(timeframe)
     strat_id = normalize_strategy(strategy)
     decimals = get_price_decimals(sym)
 
@@ -799,7 +821,6 @@ def api_analyze(
     closed_df = calculate_indicators(closed_df)
     analysis = evaluate_strategy(closed_df, live_price, sym, strat_id)
 
-    # تشغيل الوكلاء المفعّلين فقط عند صدور إشارة CALL أو PUT
     agents_report = {}
     if analysis["signal"] in ("CALL", "PUT"):
         if agent_mtf == 1:
@@ -846,7 +867,7 @@ def api_scan(
     agent_mtf: int = Query(default=0),
     agent_corr: int = Query(default=0)
 ):
-    tf = str(timeframe).upper()
+    tf = normalize_timeframe(timeframe)
     m = str(mode).strip().lower()
     strat_id = normalize_strategy(strategy)
 
@@ -894,9 +915,11 @@ def api_scan(
     raw_confirmed.sort(key=lambda x: x["strength"], reverse=True)
     killed_by_corr = []
 
-    # وكيل 3: صائد الارتباطات (إذا تم تفعيله) أو قفل Cap_2_NoOverlap للاستراتيجيتين 2 و 3
     if agent_corr == 1 and len(raw_confirmed) > 1:
         confirmed, killed_by_corr = run_agent_correlation_assassin(raw_confirmed)
+        if strat_id in ("2", "3") and len(confirmed) > 2:
+            killed_by_corr.extend(confirmed[2:])
+            confirmed = confirmed[:2]
     elif strat_id in ("2", "3"):
         confirmed = []
         used_currencies = set()
@@ -911,7 +934,6 @@ def api_scan(
     else:
         confirmed = raw_confirmed
 
-    # تشغيل وكيل 1 ووكيل 2 على الإشارات الناجية فقط (بحد أقصى أول 3 إشارات للحفاظ على السرعة)
     for item in confirmed[:3]:
         sym = item["symbol"]
         c_df, full_res = closed_map[sym]
