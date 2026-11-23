@@ -192,10 +192,15 @@
       color: #fff;
     }
 
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
     .btn-gold { background: var(--gold); color: #090d16; }
-    .btn-gold:hover { background: var(--gold-hover); }
+    .btn-gold:hover:not(:disabled) { background: var(--gold-hover); }
     .btn-dark { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); }
-    .btn-dark:hover { border-color: var(--gold); }
+    .btn-dark:hover:not(:disabled) { border-color: var(--gold); }
     .btn-green { background: var(--green); color: #052e16; }
     .btn-red { background: var(--red); color: #fff; }
 
@@ -244,7 +249,6 @@
       border-color: var(--gold);
     }
 
-    /* AI Agents Control Panel */
     .ai-panel {
       background: var(--bg-input);
       border: 1px solid #26334d;
@@ -305,7 +309,6 @@
       color: #052e16;
     }
 
-    /* AI Verdict Box */
     .ai-report-box {
       display: none;
       margin-top: 10px;
@@ -331,6 +334,24 @@
     .verdict-approved { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--green); color: #34d399; }
     .verdict-half { background: rgba(245, 158, 11, 0.2); border: 1px solid var(--gold); color: #fbbf24; }
     .verdict-veto { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--red); color: #f87171; }
+
+    .strat-tag {
+      display: inline-block;
+      background: rgba(59, 130, 246, 0.16);
+      border: 1px solid rgba(59, 130, 246, 0.45);
+      color: #93c5fd;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
+    .strat-tag.confluence {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: var(--gold);
+      color: #fde68a;
+    }
 
     .mtf-line {
       margin-top: 6px;
@@ -423,7 +444,7 @@
       border-radius: 10px;
       padding: 10px;
       font-size: 12px;
-      max-height: 300px;
+      max-height: 360px;
       overflow-y: auto;
     }
 
@@ -437,9 +458,10 @@
       margin-bottom: 6px;
       cursor: pointer;
       border: 1px solid transparent;
+      transition: 0.15s;
     }
 
-    .scan-item:hover { border-color: var(--gold); }
+    .scan-item:hover { border-color: var(--gold); background: #19243d; }
 
     .scan-item-top {
       display: flex;
@@ -451,6 +473,30 @@
       font-size: 11px;
       color: var(--text-muted);
     }
+
+    .all-pairs-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .mini-pair-chip {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-family: monospace;
+      font-size: 10px;
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+
+    .mini-pair-chip:hover { border-color: var(--gold); color: #fff; }
 
     .chart-header {
       display: flex;
@@ -614,7 +660,7 @@
 
   <header class="topbar">
     <div class="brand">
-      🎯 M15 SNIPER PRO <span class="badge">AI AGENTS EDITION</span>
+      🎯 M15 SNIPER PRO <span class="badge">AI AGENTS + ALL 5</span>
     </div>
     <div class="sessions-bar" id="sessionsBar">
       <div class="session-pill" id="sess-sydney"><span class="session-dot"></span> سيدني</div>
@@ -649,6 +695,7 @@
         <div class="form-group">
           <label for="strategySelect">الاستراتيجية المعتمدة</label>
           <select id="strategySelect">
+            <option value="0" selected>🔥 0. جميع الاستراتيجيات معاً (ALL 5)</option>
             <option value="1">1. M15 Sniper PRO (الأساسية)</option>
             <option value="2">2. V1_Original (M15 → 30m | هدوء 22-08)</option>
             <option value="3">3. S3_Calm_Plus_Day (M15 → 30m | 22-08 و 13-14)</option>
@@ -667,7 +714,6 @@
           </div>
         </div>
 
-        <!-- لوحة تحكم الوكلاء الذكيين -->
         <div class="ai-panel">
           <div class="ai-panel-title">
             <span>🤖 وكلاء الذكاء الاصطناعي (Gemini)</span>
@@ -691,7 +737,7 @@
 
         <div class="action-grid">
           <button class="btn btn-dark" id="analyzeBtn">🎯 فحص الزوج الحالي</button>
-          <button class="btn btn-gold" id="scanBtn">🔍 مسح السوق</button>
+          <button class="btn btn-gold" id="scanBtn">🔍 مسح السوق (22 زوجاً)</button>
         </div>
 
         <div class="countdown-box">
@@ -710,7 +756,7 @@
         </div>
 
         <div class="scan-results" id="scanResults">
-          <div style="color:var(--text-muted);text-align:center;">نتائج المسح الشامل ستظهر هنا...</div>
+          <div style="color:var(--text-muted);text-align:center;">نتائج المسح الشامل لـ 22 زوجاً ستظهر هنا...</div>
         </div>
       </div>
 
@@ -813,11 +859,12 @@
 
       let currentSymbol = "EUR/USD";
       let currentTimeframe = "15M";
-      let currentStrategy = "1";
+      let currentStrategy = "0";
       let lastChartData = null;
       let finnhubSocket = null;
       let finnhubKey = "";
       let lastAutoScanStamp = "";
+      let isManualScanning = false;
 
       const toggles = { ema: true, bb: true, fib: true, sr: true, tv: false };
 
@@ -828,6 +875,30 @@
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
+      }
+
+      function copyTextInstant(text) {
+        const val = String(text || "");
+        if (!val) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(val).catch(() => fallbackCopy(val));
+        } else {
+          fallbackCopy(val);
+        }
+      }
+
+      function fallbackCopy(val) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = val;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        } catch (_) {}
       }
 
       function readStoredFlag(key) {
@@ -949,9 +1020,7 @@
       });
 
       document.getElementById("copyPairBtn").addEventListener("click", () => {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(currentSymbol).catch(() => {});
-        }
+        copyTextInstant(currentSymbol);
         const btn = document.getElementById("copyPairBtn");
         btn.textContent = "✅ تم النسخ";
         setTimeout(() => { btn.textContent = "📋 نسخ"; }, 1200);
@@ -960,6 +1029,23 @@
       function updateHeaderTitles() {
         document.getElementById("activePairDisplay").textContent = currentSymbol;
         document.getElementById("chartTitle").textContent = `${currentSymbol} — ${currentTimeframe}`;
+      }
+
+      function selectAndCopyPair(sym) {
+        if (!sym) return;
+        currentSymbol = sym;
+        pairSelect.value = currentSymbol;
+        updateHeaderTitles();
+        copyTextInstant(currentSymbol);
+        const copyBtn = document.getElementById("copyPairBtn");
+        if (copyBtn) {
+          copyBtn.textContent = "✅ تم النسخ";
+          setTimeout(() => { copyBtn.textContent = "📋 نسخ"; }, 1200);
+        }
+        showApToast(`📋 تم نسخ <b>${escapeHtml(currentSymbol)}</b> وتحويل الشارت والإشارات عليه.`, "#3b82f6");
+        connectFinnhub(currentSymbol);
+        if (toggles.tv) loadTradingView();
+        analyzeCurrentPair(true);
       }
 
       document.querySelectorAll(".ind-btn").forEach(btn => {
@@ -1256,32 +1342,54 @@
       window.addEventListener("resize", drawChart);
 
       async function runManualScan() {
+        if (isManualScanning) return;
+        isManualScanning = true;
+        const scanBtnEl = document.getElementById("scanBtn");
         const box = document.getElementById("scanResults");
-        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح السوق (${escapeHtml(currentTimeframe)})...</div>`;
+        scanBtnEl.disabled = true;
+        scanBtnEl.textContent = "⏳ جارٍ المسح...";
+        const modeTxt = currentStrategy === "0" ? "الـ 5 استراتيجيات معاً" : `الاستراتيجية ${currentStrategy}`;
+        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ فحص 22 زوجاً على فريم ${escapeHtml(currentTimeframe)} (${escapeHtml(modeTxt)})...</div>`;
+
+        const controller = new AbortController();
+        const timerId = setTimeout(() => controller.abort(), 35000);
+
         try {
           const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentQueryParams()}`;
-          const resp = await fetch(url);
+          const resp = await fetch(url, { signal: controller.signal });
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const data = await resp.json();
           renderScanResults(data, false);
-        } catch (_) {
-          box.innerHTML = `<div style="color:var(--red);text-align:center;">⚠️ تعذر إتمام المسح حالياً.</div>`;
+        } catch (err) {
+          const msg = err && err.name === "AbortError"
+            ? "⏱️ استغرق فحص الـ 22 زوجاً وقتاً أطول من المعتاد — أعد المحاولة الآن."
+            : "⚠️ تعذر إتمام المسح حالياً — تحقق من حالة السيرفر وأعد المحاولة.";
+          box.innerHTML = `<div style="color:var(--red);text-align:center;">${escapeHtml(msg)}</div>`;
+        } finally {
+          clearTimeout(timerId);
+          isManualScanning = false;
+          scanBtnEl.disabled = false;
+          scanBtnEl.textContent = "🔍 مسح السوق (22 زوجاً)";
         }
       }
 
       function renderScanResults(data, isAuto = false) {
         const box = document.getElementById("scanResults");
-        if (!data.ok) {
-          box.innerHTML = `<div style="color:var(--red);text-align:center;">${escapeHtml(data.error || "خطأ في المسح")}</div>`;
+        if (!data || !data.ok) {
+          box.innerHTML = `<div style="color:var(--red);text-align:center;">${escapeHtml((data && data.error) || "خطأ في المسح")}</div>`;
           return;
         }
         const nowTime = new Date().toLocaleTimeString("en-GB", { hour12: false });
         const modeBadge = isAuto ? `رادار تلقائي — آخر فحص: <b>${nowTime}</b>` : `فحص يدوي — <b>${nowTime}</b>`;
-        let html = `<div style="color:var(--text-muted);margin-bottom:8px;line-height:1.5;">${modeBadge}<br>تم فحص <b>${Number(data.scanned) || 0}/${Number(data.total) || 0}</b> زوجاً</div>`;
+        let html = `<div style="color:var(--text-muted);margin-bottom:8px;line-height:1.5;">${modeBadge}<br>تم فحص <b>${Number(data.scanned) || 0}/${Number(data.total) || 22}</b> زوجاً</div>`;
 
         if (data.confirmed && data.confirmed.length > 0) {
-          html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن:</div>`;
+          html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن (اضغط لنسخ الزوج والتحويل):</div>`;
           data.confirmed.forEach(c => {
+            const confCount = Number(c.confluence) || 1;
+            const stratBadge = c.strategy_label
+              ? `<span class="strat-tag ${confCount > 1 ? "confluence" : ""}">${confCount > 1 ? "🔥 تأكيد مزدوج: " : "📌 "}${escapeHtml(c.strategy_label)}</span>`
+              : "";
             let subInfo = "";
             if (c.court) {
               subInfo += `<div>⚖️ ${renderVerdictBadge(c.court.verdict)} ${escapeHtml(c.court.judge_note || "")}</div>`;
@@ -1289,16 +1397,17 @@
             if (c.mtf) {
               subInfo += `<div>${escapeHtml(c.mtf.summary || "")}</div>`;
             }
-            html += `<div class="scan-item" data-sym="${escapeHtml(c.symbol)}">
+            html += `<div class="scan-item" data-sym="${escapeHtml(c.symbol)}" title="اضغط لنسخ الزوج وتحويل الشارت عليه">
               <div class="scan-item-top">
                 <span><b>${escapeHtml(c.symbol)}</b> (${c.signal === "CALL" ? "🟢 صعود" : "🔴 هبوط"})</span>
                 <span style="color:var(--gold)">ثقة ${Number(c.confidence) || 0}%</span>
               </div>
+              <div>${stratBadge}</div>
               ${subInfo ? `<div class="scan-item-sub">${subInfo}</div>` : ""}
             </div>`;
           });
         } else {
-          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه الشمعة.</div>`;
+          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه الشمعة ضمن الـ 22 زوجاً.</div>`;
         }
 
         if (data.killed_by_corr && data.killed_by_corr.length > 0) {
@@ -1308,15 +1417,23 @@
           </div>`;
         }
 
+        if (Array.isArray(data.pairs_summary) && data.pairs_summary.length > 0) {
+          html += `<div style="color:var(--text-muted);font-size:11px;margin-top:8px;">حالة الأزواج المفحوصة (${data.pairs_summary.length}):</div>`;
+          html += `<div class="all-pairs-grid">`;
+          data.pairs_summary.forEach(p => {
+            const tag = p.signal === "CALL" ? "🟢 CALL" : p.signal === "PUT" ? "🔴 PUT" : "WAIT";
+            html += `<div class="mini-pair-chip" data-sym="${escapeHtml(p.symbol)}" title="${escapeHtml(p.reason || "")}">
+              <span>${escapeHtml(p.symbol)}</span>
+              <span>${escapeHtml(tag)}</span>
+            </div>`;
+          });
+          html += `</div>`;
+        }
+
         box.innerHTML = html;
-        box.querySelectorAll(".scan-item").forEach(el => {
+        box.querySelectorAll(".scan-item, .mini-pair-chip").forEach(el => {
           el.addEventListener("click", () => {
-            currentSymbol = el.dataset.sym;
-            pairSelect.value = currentSymbol;
-            updateHeaderTitles();
-            connectFinnhub(currentSymbol);
-            if (toggles.tv) loadTradingView();
-            analyzeCurrentPair();
+            selectAndCopyPair(el.dataset.sym);
           });
         });
       }
@@ -1361,7 +1478,6 @@
       });
       updateCapitalCalc();
 
-      // وحدة الرادار التلقائي المحمي (6 ساعات)
       const apBtn = document.getElementById("ap-toggle-btn");
       const apStateText = document.getElementById("ap-state-text");
       const apTimerEl = document.getElementById("ap-timer");
@@ -1386,7 +1502,7 @@
         apToastEl.innerHTML = html;
         apToastEl.style.display = "block";
         clearTimeout(apToastEl._t);
-        apToastEl._t = setTimeout(() => { apToastEl.style.display = "none"; }, 12000);
+        apToastEl._t = setTimeout(() => { apToastEl.style.display = "none"; }, 8000);
       }
 
       function renderApUI() {
@@ -1447,7 +1563,8 @@
 
             const items = data.confirmed.map(c => {
               const vTag = c.court ? ` [${escapeHtml(c.court.verdict)}]` : "";
-              return `<div>${c.signal === "CALL" ? "🟢" : "🔴"} <b>${escapeHtml(c.symbol)}</b> (${escapeHtml(c.signal)})${vTag}</div>`;
+              const sTag = c.strategy_label ? ` (${escapeHtml(c.strategy_label)})` : "";
+              return `<div>${c.signal === "CALL" ? "🟢" : "🔴"} <b>${escapeHtml(c.symbol)}</b>${sTag}${vTag}</div>`;
             }).join("");
             showApToast(`<b>🎯 فرص مؤكدة الآن (${escapeHtml(currentTimeframe)}):</b><br>${items}`, "#10b981");
           }
