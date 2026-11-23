@@ -25,7 +25,11 @@ TWELVE_DATA_KEYS = [
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = "gemini-flash-latest"
+GEMINI_MODELS = [
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite"
+]
 
 try:
     DISPLAY_TZ = ZoneInfo("Asia/Hebron")
@@ -71,7 +75,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.0-ALL"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.1-AI-FALLBACK"})
         thread_local.session = s
     return thread_local.session
 
@@ -373,35 +377,48 @@ def detect_sr_and_fib(closed_df, symbol):
     return resistances, supports, fib_levels
 
 # ==========================================
-# 4. AI Agents Engine (Gemini Flash Latest)
+# 4. AI Agents Engine (Fast Multi-Model Fallback)
 # ==========================================
-def call_gemini_json(prompt_text, timeout_sec=15):
+def call_gemini_json(prompt_text, timeout_sec=8):
     if not GEMINI_API_KEY:
         return {"_error": "مفتاح GEMINI_API_KEY غير مضاف في Render"}
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
     headers = {
         "Content-Type": "application/json",
         "X-goog-api-key": GEMINI_API_KEY
     }
-    payload = {
-        "contents": [{"parts": [{"text": prompt_text}]}],
-        "generationConfig": {
+    session = get_http_session()
+    last_error = "تأخر استجابة سيرفرات Gemini"
+
+    for model in GEMINI_MODELS:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        gen_config = {
             "temperature": 0.2,
             "responseMimeType": "application/json"
         }
-    }
-    try:
-        session = get_http_session()
-        resp = session.post(url, headers=headers, json=payload, timeout=timeout_sec)
-        if resp.status_code != 200:
-            return {"_error": f"HTTP {resp.status_code}: {resp.text[:160]}"}
-        data = resp.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
-        parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else {"_error": "رد غير متوقع من Gemini"}
-    except Exception as e:
-        return {"_error": str(e)[:160]}
+        if "2.5" in model or "latest" in model:
+            gen_config["thinkingConfig"] = {"thinkingBudget": 0}
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt_text}]}],
+            "generationConfig": gen_config
+        }
+        try:
+            resp = session.post(url, headers=headers, json=payload, timeout=timeout_sec)
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    return parsed
+                last_error = "رد غير متوقع من Gemini"
+                continue
+            last_error = f"HTTP {resp.status_code} ({model})"
+        except Exception as e:
+            last_error = f"{model}: {str(e)[:90]}"
+
+    return {"_error": last_error}
 
 def run_agent_court(symbol, timeframe, closed_df, analysis):
     """Agent 1: محكمة الصفقة (Sniper vs Trap Hunter -> Judge)"""
@@ -431,7 +448,7 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
         '"judge_note": "قرار القاضي النهائي في جملة واحدة"}'
     )
 
-    res = call_gemini_json(prompt, timeout_sec=15)
+    res = call_gemini_json(prompt, timeout_sec=8)
     if not isinstance(res, dict) or "verdict" not in res:
         err_detail = res.get("_error", "تأخر استجابة الـ API") if isinstance(res, dict) else "تأخر استجابة الـ API"
         return {
@@ -541,7 +558,7 @@ def run_agent_correlation_assassin(signals_list):
             "وارجع JSON فقط بالشكل:\n"
             '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
         )
-        ai_res = call_gemini_json(prompt, timeout_sec=10)
+        ai_res = call_gemini_json(prompt, timeout_sec=7)
         if isinstance(ai_res, dict) and isinstance(ai_res.get("keep_symbols"), list):
             ai_keep = {normalize_symbol(sym) for sym in ai_res["keep_symbols"] if isinstance(sym, str) and sym.strip()}
             ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
@@ -775,7 +792,6 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
     if strategy_id != "0":
         return evaluate_single_strategy(closed_df, live_price, symbol, strategy_id)
 
-    # فحص جميع الاستراتيجيات الـ 5 دفعة واحدة على نفس الشموع
     results = {}
     calls = []
     puts = []
@@ -789,7 +805,6 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
 
     base = results["1"]
 
-    # استبعاد تلقائي في حال تضارب الإشارات بين استراتيجيتين في نفس الشمعة
     if calls and puts:
         base["signal"] = "WAIT"
         base["confidence"] = 0
