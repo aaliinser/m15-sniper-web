@@ -25,7 +25,7 @@ TWELVE_DATA_KEYS = [
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-flash-latest"
 
 try:
     DISPLAY_TZ = ZoneInfo("Asia/Hebron")
@@ -34,6 +34,14 @@ except Exception:
 
 CALM_HOURS_V1 = {22, 23, 0, 1, 2, 3, 4, 5, 6, 7, 8}
 ALLOWED_HOURS_S3 = {22, 23, 0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14}
+
+STRATEGY_NAMES = {
+    "1": "1. M15 Sniper",
+    "2": "2. V1_Original",
+    "3": "3. S3_Calm",
+    "4": "4. F4_ZScore",
+    "5": "5. Stoch_9_5"
+}
 
 key_lock = threading.Lock()
 cache_lock = threading.Lock()
@@ -63,7 +71,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/5.2-AI"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.0-ALL"})
         thread_local.session = s
     return thread_local.session
 
@@ -103,7 +111,9 @@ def get_currencies(symbol):
     return {clean[:3], clean[3:6]} if len(clean) >= 6 else set()
 
 def normalize_strategy(raw_strat):
-    s = str(raw_strat or "1").strip().lower()
+    s = str(raw_strat or "0").strip().lower()
+    if s in ("0", "all", "multi") or "all" in s or "0." in s:
+        return "0"
     if s in ("1", "sniper", "m15", "default") or "sniper" in s or "1." in s:
         return "1"
     if s in ("2", "v1", "v1_original", "calm") or "v1" in s or "2." in s:
@@ -114,7 +124,7 @@ def normalize_strategy(raw_strat):
         return "4"
     if s in ("5", "stoch", "stochastic", "h1") or "stoch" in s or "5." in s:
         return "5"
-    return "1"
+    return "0"
 
 def get_price_decimals(symbol):
     return 3 if "JPY" in symbol else 5
@@ -363,12 +373,16 @@ def detect_sr_and_fib(closed_df, symbol):
     return resistances, supports, fib_levels
 
 # ==========================================
-# 4. AI Agents Engine (Gemini 2.5 Flash)
+# 4. AI Agents Engine (Gemini Flash Latest)
 # ==========================================
-def call_gemini_json(prompt_text, timeout_sec=6):
+def call_gemini_json(prompt_text, timeout_sec=15):
     if not GEMINI_API_KEY:
-        return None
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+        return {"_error": "مفتاح GEMINI_API_KEY غير مضاف في Render"}
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "X-goog-api-key": GEMINI_API_KEY
+    }
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}],
         "generationConfig": {
@@ -378,16 +392,16 @@ def call_gemini_json(prompt_text, timeout_sec=6):
     }
     try:
         session = get_http_session()
-        resp = session.post(url, json=payload, timeout=timeout_sec)
+        resp = session.post(url, headers=headers, json=payload, timeout=timeout_sec)
         if resp.status_code != 200:
-            return None
+            return {"_error": f"HTTP {resp.status_code}: {resp.text[:160]}"}
         data = resp.json()
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
         parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else None
-    except Exception:
-        return None
+        return parsed if isinstance(parsed, dict) else {"_error": "رد غير متوقع من Gemini"}
+    except Exception as e:
+        return {"_error": str(e)[:160]}
 
 def run_agent_court(symbol, timeframe, closed_df, analysis):
     """Agent 1: محكمة الصفقة (Sniper vs Trap Hunter -> Judge)"""
@@ -405,7 +419,7 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
 
     prompt = (
         f"أنت نظام محكمة تداول كمي من 3 وكلاء لصفقة خيارات ثنائية على {symbol} فريم {timeframe}.\n"
-        f"الإشارة المقترحة: {analysis['signal']} | السبب الفني: {analysis['reason']}\n"
+        f"الإشارة المقترحة: {analysis['signal']} | الاستراتيجية: {analysis.get('strategy_label', '')} | السبب الفني: {analysis['reason']}\n"
         f"السعر الحالي: {analysis['live_price']} | EMA200: {analysis.get('ema200')} | "
         f"BB Upper: {analysis.get('bb_upper')} | BB Lower: {analysis.get('bb_lower')}\n"
         f"أقرب مقاومات: {analysis.get('resistances')} | أقرب دعوم: {analysis.get('supports')}\n"
@@ -417,13 +431,14 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
         '"judge_note": "قرار القاضي النهائي في جملة واحدة"}'
     )
 
-    res = call_gemini_json(prompt, timeout_sec=6)
+    res = call_gemini_json(prompt, timeout_sec=15)
     if not isinstance(res, dict) or "verdict" not in res:
+        err_detail = res.get("_error", "تأخر استجابة الـ API") if isinstance(res, dict) else "تأخر استجابة الـ API"
         return {
             "verdict": "HALF RISK",
             "sniper": "الإشارة مطابقة لشروط الاستراتيجية الكمية.",
-            "trap_hunter": "تعذر الاتصال بمحرك Gemini لحظياً — يُنصح بالحذر.",
-            "judge_note": "حكم احتياطي تلقائي بسبب تأخر استجابة الـ API."
+            "trap_hunter": f"تعذر الاتصال بـ Gemini ({err_detail})",
+            "judge_note": "حكم احتياطي تلقائي."
         }
     return {
         "verdict": str(res.get("verdict", "HALF RISK")).upper(),
@@ -501,7 +516,11 @@ def run_agent_correlation_assassin(signals_list):
     if len(signals_list) <= 1:
         return signals_list, []
 
-    ordered = sorted(signals_list, key=lambda x: x.get("strength", 0.0), reverse=True)
+    ordered = sorted(
+        signals_list,
+        key=lambda x: (x.get("confluence", 1), x.get("strength", 0.0)),
+        reverse=True
+    )
 
     if GEMINI_API_KEY and len(ordered) >= 2:
         brief = [
@@ -509,7 +528,8 @@ def run_agent_correlation_assassin(signals_list):
                 "symbol": s["symbol"],
                 "signal": s["signal"],
                 "confidence": s["confidence"],
-                "strength": s.get("strength", 0),
+                "confluence": s.get("confluence", 1),
+                "strategy": s.get("strategy_label", ""),
                 "reason": s["reason"]
             }
             for s in ordered
@@ -521,7 +541,7 @@ def run_agent_correlation_assassin(signals_list):
             "وارجع JSON فقط بالشكل:\n"
             '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
         )
-        ai_res = call_gemini_json(prompt, timeout_sec=5)
+        ai_res = call_gemini_json(prompt, timeout_sec=10)
         if isinstance(ai_res, dict) and isinstance(ai_res.get("keep_symbols"), list):
             ai_keep = {normalize_symbol(sym) for sym in ai_res["keep_symbols"] if isinstance(sym, str) and sym.strip()}
             ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
@@ -551,12 +571,12 @@ def run_agent_correlation_assassin(signals_list):
     return kept, killed
 
 # ==========================================
-# 5. Strategy Evaluation
+# 5. Strategy Evaluation (Single + All 5)
 # ==========================================
-def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
+def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
-    strategy_id = normalize_strategy(strategy_id)
     min_req = 201 if strategy_id in ("1", "5") else 35
+    strat_name = STRATEGY_NAMES.get(strategy_id, f"استراتيجية {strategy_id}")
 
     if len(closed_df) < min_req:
         return {
@@ -564,6 +584,8 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
             "reason": "بيانات الشموع المغلقة غير كافية لحساب المؤشرات.",
             "confidence": 0,
             "strength": 0.0,
+            "confluence": 0,
+            "strategy_label": strat_name,
             "live_price": round(live_price, decimals),
             "bb_upper": None, "bb_lower": None, "ema200": None,
             "resistances": [], "supports": [], "fib": {}
@@ -592,6 +614,8 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
             "reason": "مؤشرات التهيئة غير مكتملة (NaN) — تم تخطي التقييم.",
             "confidence": 0,
             "strength": 0.0,
+            "confluence": 0,
+            "strategy_label": strat_name,
             "live_price": round(live_price, decimals),
             "bb_upper": None, "bb_lower": None, "ema200": None,
             "resistances": [], "supports": [], "fib": {}
@@ -735,6 +759,8 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         "reason": reason,
         "confidence": confidence,
         "strength": strength,
+        "confluence": 1 if signal in ("CALL", "PUT") else 0,
+        "strategy_label": strat_name,
         "live_price": round(live_price, decimals),
         "bb_upper": round(bb_u, decimals) if bb_u is not None else None,
         "bb_lower": round(bb_l, decimals) if bb_l is not None else None,
@@ -743,6 +769,61 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
         "supports": [{"price": round(s["price"], decimals), "touches": s["touches"]} for s in supports],
         "fib": fib_levels
     }
+
+def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
+    strategy_id = normalize_strategy(strategy_id)
+    if strategy_id != "0":
+        return evaluate_single_strategy(closed_df, live_price, symbol, strategy_id)
+
+    # فحص جميع الاستراتيجيات الـ 5 دفعة واحدة على نفس الشموع
+    results = {}
+    calls = []
+    puts = []
+    for sid in ("1", "2", "3", "4", "5"):
+        res = evaluate_single_strategy(closed_df, live_price, symbol, sid)
+        results[sid] = res
+        if res["signal"] == "CALL":
+            calls.append((sid, res))
+        elif res["signal"] == "PUT":
+            puts.append((sid, res))
+
+    base = results["1"]
+
+    # استبعاد تلقائي في حال تضارب الإشارات بين استراتيجيتين في نفس الشمعة
+    if calls and puts:
+        base["signal"] = "WAIT"
+        base["confidence"] = 0
+        base["strength"] = 0.0
+        base["confluence"] = 0
+        base["strategy_label"] = "تضارب استراتيجيات"
+        base["reason"] = "تم استبعاد الزوج لتضارب إشارات الصعود والهبوط بين الاستراتيجيات في نفس الشمعة."
+        return base
+
+    winners = calls if calls else puts
+    if not winners:
+        base["signal"] = "WAIT"
+        base["confidence"] = 0
+        base["strength"] = 0.0
+        base["confluence"] = 0
+        base["strategy_label"] = "فحص شامل (5 استراتيجيات)"
+        base["reason"] = "لا توجد إشارة مطابقة في أي من الاستراتيجيات الخمس على هذا الفريم."
+        return base
+
+    winners.sort(key=lambda item: item[1]["strength"], reverse=True)
+    primary = winners[0][1].copy()
+    matched_names = [STRATEGY_NAMES[sid] for sid, _ in winners]
+    confluence_count = len(winners)
+
+    primary["confluence"] = confluence_count
+    primary["strategy_label"] = " + ".join(matched_names)
+    primary["confidence"] = min(90, max(r["confidence"] for _, r in winners) + (confluence_count - 1) * 6)
+    primary["strength"] = round(primary["strength"] + (confluence_count - 1) * 20.0, 2)
+    if confluence_count > 1:
+        primary["reason"] = f"🔥 تأكيد مزدوج ({confluence_count} استراتيجيات: {primary['strategy_label']}) | {primary['reason']}"
+    else:
+        primary["reason"] = f"[{primary['strategy_label']}] {primary['reason']}"
+
+    return primary
 
 def scan_single_pair(sym, timeframe, strategy):
     df, err = fetch_candles(sym, timeframe)
@@ -803,7 +884,7 @@ def index():
 def api_analyze(
     symbol: str = Query(default="EUR/USD"),
     timeframe: str = Query(default="15M"),
-    strategy: str = Query(default="1"),
+    strategy: str = Query(default="0"),
     agent_court: int = Query(default=0),
     agent_mtf: int = Query(default=0)
 ):
@@ -860,7 +941,7 @@ def api_analyze(
 @app.get("/scan")
 def api_scan(
     timeframe: str = Query(default="15M"),
-    strategy: str = Query(default="1"),
+    strategy: str = Query(default="0"),
     mode: str = Query(default="manual"),
     agent_court: int = Query(default=0),
     agent_mtf: int = Query(default=0),
@@ -901,7 +982,8 @@ def api_scan(
                     "symbol": sym,
                     "signal": res.get("signal", "WAIT"),
                     "price": res.get("live_price", 0.0),
-                    "reason": res.get("reason", "")
+                    "reason": res.get("reason", ""),
+                    "strategy_label": res.get("strategy_label", "")
                 })
                 if res.get("signal") in ("CALL", "PUT") and len(c_df) > 0:
                     closed_map[sym] = (c_df, res)
@@ -910,6 +992,8 @@ def api_scan(
                         "signal": res["signal"],
                         "confidence": res["confidence"],
                         "strength": res.get("strength", 0.0),
+                        "confluence": res.get("confluence", 1),
+                        "strategy_label": res.get("strategy_label", ""),
                         "reason": res["reason"],
                         "price": res["live_price"]
                     })
@@ -922,7 +1006,7 @@ def api_scan(
             "error": "تم الوصول للحد المؤقت لمزود البيانات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المسح."
         })
 
-    raw_confirmed.sort(key=lambda x: x["strength"], reverse=True)
+    raw_confirmed.sort(key=lambda x: (x.get("confluence", 1), x.get("strength", 0.0)), reverse=True)
     pairs_summary.sort(key=lambda x: x["symbol"])
     killed_by_corr = []
 
