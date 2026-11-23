@@ -5,7 +5,7 @@ import time
 import datetime
 import threading
 from zoneinfo import ZoneInfo
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 import requests
 from requests.adapters import HTTPAdapter
 import numpy as np
@@ -63,7 +63,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/5.1-AI"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/5.2-AI"})
         thread_local.session = s
     return thread_local.session
 
@@ -171,7 +171,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             if now - cached_time < cached_ttl:
                 return cached_df.copy(), None
 
-    last_error = "تم الوصول للحد المؤقت للطلبات — أعد المحاولة بعد قليل."
+    last_error = "تم الوصول للحد المؤقت للطلبات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المحاولة."
     num_keys = len(TWELVE_DATA_KEYS)
     session = get_http_session()
     min_needed = 60 if outputsize < 200 else 205
@@ -188,7 +188,7 @@ def fetch_candles(symbol, timeframe="15M", outputsize=300):
             f"&apikey={api_key}&timezone=UTC"
         )
         try:
-            resp = session.get(url, timeout=8)
+            resp = session.get(url, timeout=7)
             if resp.status_code == 429:
                 mark_key_cooldown(idx, 55.0)
                 continue
@@ -747,7 +747,7 @@ def evaluate_strategy(closed_df, live_price, symbol, strategy_id):
 def scan_single_pair(sym, timeframe, strategy):
     df, err = fetch_candles(sym, timeframe)
     if err or df is None:
-        return sym, {"signal": "WAIT", "reason": err or "تعذر جلب البيانات", "confidence": 0, "strength": 0.0, "live_price": 0.0}, pd.DataFrame()
+        return None
     closed_df, live_price = filter_closed_candles(df, timeframe)
     closed_df = calculate_indicators(closed_df)
     res = evaluate_strategy(closed_df, live_price, sym, strategy)
@@ -879,46 +879,51 @@ def api_scan(
                 "error": "توقف الرادار التلقائي بعد انتهاء مدة الـ 6 ساعات أو تم إيقافه يدوياً."
             })
 
-    # فحص جميع الأزواج الـ 22 دفعة واحدة
     target_pairs = list(PAIRS_22)
-
     raw_confirmed = []
-    all_pairs_status = []
+    pairs_summary = []
     closed_map = {}
     scanned_count = 0
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {executor.submit(scan_single_pair, sym, tf, strat_id): sym for sym in target_pairs}
-        for future in as_completed(futures, timeout=35):
-            try:
-                outcome = future.result(timeout=10)
-            except Exception:
-                continue
-            if outcome is None:
-                continue
-            sym, res, c_df = outcome
-            scanned_count += 1
-
-            all_pairs_status.append({
-                "symbol": sym,
-                "signal": res.get("signal", "WAIT"),
-                "price": res.get("live_price", 0.0),
-                "reason": res.get("reason", "")
-            })
-
-            if res.get("signal") in ("CALL", "PUT") and len(c_df) > 0:
-                closed_map[sym] = (c_df, res)
-                raw_confirmed.append({
+        try:
+            for future in as_completed(futures, timeout=25):
+                try:
+                    outcome = future.result(timeout=1)
+                except Exception:
+                    continue
+                if outcome is None:
+                    continue
+                sym, res, c_df = outcome
+                scanned_count += 1
+                pairs_summary.append({
                     "symbol": sym,
-                    "signal": res["signal"],
-                    "confidence": res["confidence"],
-                    "strength": res.get("strength", 0.0),
-                    "reason": res["reason"],
-                    "price": res["live_price"]
+                    "signal": res.get("signal", "WAIT"),
+                    "price": res.get("live_price", 0.0),
+                    "reason": res.get("reason", "")
                 })
+                if res.get("signal") in ("CALL", "PUT") and len(c_df) > 0:
+                    closed_map[sym] = (c_df, res)
+                    raw_confirmed.append({
+                        "symbol": sym,
+                        "signal": res["signal"],
+                        "confidence": res["confidence"],
+                        "strength": res.get("strength", 0.0),
+                        "reason": res["reason"],
+                        "price": res["live_price"]
+                    })
+        except FuturesTimeoutError:
+            pass
+
+    if scanned_count == 0:
+        return JSONResponse({
+            "ok": False,
+            "error": "تم الوصول للحد المؤقت لمزود البيانات (24 طلب/دقيقة) — انتظر 45 ثانية ثم أعد المسح."
+        })
 
     raw_confirmed.sort(key=lambda x: x["strength"], reverse=True)
-    all_pairs_status.sort(key=lambda x: x["symbol"])
+    pairs_summary.sort(key=lambda x: x["symbol"])
     killed_by_corr = []
 
     if agent_corr == 1 and len(raw_confirmed) > 1:
@@ -956,7 +961,7 @@ def api_scan(
         "total": len(target_pairs),
         "confirmed": confirmed,
         "killed_by_corr": killed_by_corr,
-        "pairs_summary": all_pairs_status
+        "pairs_summary": pairs_summary
     })
 
 if __name__ == "__main__":
