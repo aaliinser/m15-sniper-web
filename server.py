@@ -24,8 +24,11 @@ TWELVE_DATA_KEYS = [
     "5c929836e14d412182bbc5fce8f61b70"
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = "gemini-flash-latest"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+GROQ_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant"
+]
 
 try:
     DISPLAY_TZ = ZoneInfo("Asia/Hebron")
@@ -42,6 +45,7 @@ STRATEGY_NAMES = {
 
 key_lock = threading.Lock()
 cache_lock = threading.Lock()
+ai_cache_lock = threading.Lock()
 autopilot_lock = threading.Lock()
 
 current_key_index = 0
@@ -54,6 +58,7 @@ AUTO_PILOT_STATE = {
 }
 
 CACHE_STORE = {}
+AI_CACHE_STORE = {}
 CACHE_TTL_BY_TF = {
     "1M": 20,
     "5M": 45,
@@ -68,7 +73,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.6-FINAL"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/7.0-GROQ"})
         thread_local.session = s
     return thread_local.session
 
@@ -146,6 +151,10 @@ def cleanup_cache(now_ts):
         expired = [k for k, (ts, ttl, _) in CACHE_STORE.items() if now_ts - ts >= ttl]
         for k in expired:
             CACHE_STORE.pop(k, None)
+    with ai_cache_lock:
+        expired_ai = [k for k, (ts, _) in AI_CACHE_STORE.items() if now_ts - ts >= 600]
+        for k in expired_ai:
+            AI_CACHE_STORE.pop(k, None)
 
 def check_autopilot_state():
     now_ts = time.time()
@@ -370,53 +379,51 @@ def detect_sr_and_fib(closed_df, symbol):
     return resistances, supports, fib_levels
 
 # ==========================================
-# 4. AI Agents Engine (Exact Official Endpoint)
+# 4. AI Agents Engine (Groq Ultra-Fast + Cache)
 # ==========================================
-def call_gemini_json(prompt_text, timeout_sec=20):
-    if not GEMINI_API_KEY:
-        return {"_error": "مفتاح GEMINI_API_KEY غير مضاف في Render"}
+def call_groq_json(prompt_text, timeout_sec=12):
+    if not GROQ_API_KEY:
+        return {"_error": "مفتاح GROQ_API_KEY غير مضاف في Render"}
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "X-goog-api-key": GEMINI_API_KEY
+        "Authorization": f"Bearer {GROQ_API_KEY}"
     }
-    payload = {
-        "contents": [{"parts": [{"text": prompt_text}]}],
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 300,
-            "responseMimeType": "application/json"
-        }
-    }
-
     session = get_http_session()
-    last_error = "تأخر استجابة سيرفر Gemini"
+    last_error = "تأخر استجابة سيرفر Groq"
 
-    for attempt in range(2):
+    for model in GROQ_MODELS:
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a quantitative forex trading risk assistant. Always respond with valid JSON only in Arabic."
+                },
+                {
+                    "role": "user",
+                    "content": prompt_text
+                }
+            ],
+            "temperature": 0.2,
+            "max_tokens": 350,
+            "response_format": {"type": "json_object"}
+        }
         try:
             resp = session.post(url, headers=headers, json=payload, timeout=timeout_sec)
             if resp.status_code == 200:
                 data = resp.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                text = data["choices"][0]["message"]["content"]
                 text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
                 parsed = json.loads(text)
                 if isinstance(parsed, dict):
                     return parsed
-                last_error = "رد غير متوقع من Gemini"
-            elif resp.status_code in (429, 500, 502, 503, 504):
-                last_error = f"ضغط مؤقت على سيرفر Google (HTTP {resp.status_code})"
-                if attempt == 0:
-                    time.sleep(1.5)
-                    continue
-            else:
-                last_error = f"HTTP {resp.status_code}: {resp.text[:100]}"
-                break
-        except Exception as e:
-            last_error = f"انقطاع مؤقت: {str(e)[:80]}"
-            if attempt == 0:
-                time.sleep(1.0)
+                last_error = "رد غير متوقع من Groq"
                 continue
+            last_error = f"HTTP {resp.status_code} ({model})"
+        except Exception as e:
+            last_error = f"{model}: {str(e)[:80]}"
 
     return {"_error": last_error}
 
@@ -424,6 +431,15 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
     """Agent 1: محكمة الصفقة (Sniper vs Trap Hunter -> Judge)"""
     if analysis["signal"] not in ("CALL", "PUT"):
         return None
+
+    candle_ts = int(closed_df["open_ts"].iloc[-1]) if len(closed_df) > 0 and "open_ts" in closed_df.columns else 0
+    cache_key = f"court:{symbol}:{timeframe}:{candle_ts}:{analysis['signal']}:{analysis.get('strategy_label', '')}"
+
+    with ai_cache_lock:
+        if cache_key in AI_CACHE_STORE:
+            cached_ts, cached_val = AI_CACHE_STORE[cache_key]
+            if time.time() - cached_ts < 600:
+                return dict(cached_val)
 
     last_candles = []
     for _, r in closed_df.tail(8).iterrows():
@@ -448,21 +464,25 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
         '"judge_note": "قرار القاضي النهائي في جملة واحدة"}'
     )
 
-    res = call_gemini_json(prompt, timeout_sec=20)
+    res = call_groq_json(prompt, timeout_sec=12)
     if not isinstance(res, dict) or "verdict" not in res:
         err_detail = res.get("_error", "تأخر استجابة الـ API") if isinstance(res, dict) else "تأخر استجابة الـ API"
         return {
             "verdict": "HALF RISK",
             "sniper": "الإشارة مطابقة لشروط الاستراتيجية الكمية.",
-            "trap_hunter": f"تعذر الاتصال بـ Gemini ({err_detail})",
+            "trap_hunter": f"تعذر الاتصال بـ Groq ({err_detail})",
             "judge_note": "حكم احتياطي تلقائي."
         }
-    return {
+
+    result = {
         "verdict": str(res.get("verdict", "HALF RISK")).upper(),
         "sniper": str(res.get("sniper", "")),
         "trap_hunter": str(res.get("trap_hunter", "")),
         "judge_note": str(res.get("judge_note", ""))
     }
+    with ai_cache_lock:
+        AI_CACHE_STORE[cache_key] = (time.time(), result)
+    return result
 
 def run_agent_mtf_guard(symbol, timeframe, closed_df, analysis):
     """Agent 2: حارس فريم الساعة والأرقام النفسية (MTF Liquidity & Round-Number Guard)"""
@@ -539,7 +559,7 @@ def run_agent_correlation_assassin(signals_list):
         reverse=True
     )
 
-    if GEMINI_API_KEY and len(ordered) >= 2:
+    if GROQ_API_KEY and len(ordered) >= 2:
         brief = [
             {
                 "symbol": s["symbol"],
@@ -558,7 +578,7 @@ def run_agent_correlation_assassin(signals_list):
             "وارجع JSON فقط بالشكل:\n"
             '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
         )
-        ai_res = call_gemini_json(prompt, timeout_sec=15)
+        ai_res = call_groq_json(prompt, timeout_sec=10)
         if isinstance(ai_res, dict) and isinstance(ai_res.get("keep_symbols"), list):
             ai_keep = {normalize_symbol(sym) for sym in ai_res["keep_symbols"] if isinstance(sym, str) and sym.strip()}
             ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
