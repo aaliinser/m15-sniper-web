@@ -36,9 +36,6 @@ try:
 except Exception:
     DISPLAY_TZ = datetime.timezone(datetime.timedelta(hours=2))
 
-CALM_HOURS_V1 = {22, 23, 0, 1, 2, 3, 4, 5, 6, 7, 8}
-ALLOWED_HOURS_S3 = {22, 23, 0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14}
-
 STRATEGY_NAMES = {
     "1": "1. M15 Sniper",
     "2": "2. V1_Original",
@@ -75,7 +72,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.1-AI-FALLBACK"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.2-AI-RELAXED"})
         thread_local.session = s
     return thread_local.session
 
@@ -650,13 +647,13 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
     atr = float(c["atr"]) if not pd.isna(c["atr"]) else 0.0
 
     resistances, supports, fib_levels = detect_sr_and_fib(closed_df, symbol)
-    gaza_hour = datetime.datetime.now(DISPLAY_TZ).hour
 
     signal = "WAIT"
     reason = "بانتظار إشارة مطابقة للشروط"
     confidence = 0
     strength = 0.0
 
+    # الاستراتيجية 1 (الأساسية) — بدون أي تعديل
     if strategy_id == "1":
         candle_range = max(high_p - low_p, 1e-9)
         body_size = abs(close_p - open_p)
@@ -687,6 +684,7 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
         else:
             reason = "بانتظار إغلاق أو ذيل رفض عند BB(15, 2.0) مع توافق EMA 200"
 
+    # الاستراتيجية 2 (مفتوحة 24 ساعة + شروط مخففة)
     elif strategy_id == "2":
         bb20_u = float(c["bb20_upper"])
         bb20_l = float(c["bb20_lower"])
@@ -696,62 +694,61 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
 
         if "JPY" in symbol:
             reason = "استراتيجية V1_Original تستبعد أزواج الين (JPY)."
-        elif gaza_hour not in CALM_HOURS_V1:
-            reason = f"خارج ساعات الهدوء بتوقيت غزة (22:00 - 08:00) — الساعة الحالية {gaza_hour:02d}:00."
-        elif adx >= 25.0:
-            reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 25) — تم تخطي الدخول."
-        elif close_p < open_p and close_p < bb20_l and rsi7 < 20.0:
+        elif adx >= 32.0:
+            reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 32) — تم تخطي الدخول."
+        elif close_p < open_p and close_p <= bb20_l and rsi7 <= 28.0:
             signal = "CALL"
-            reason = f"[V1_Original | 30m] كسر BB(20,2) السفلي + RSI7={rsi7:.1f} + ADX={adx:.1f}"
+            reason = f"[V1_Original | 24h] كسر BB(20,2) السفلي + RSI7={rsi7:.1f} + ADX={adx:.1f}"
             confidence = 65
             strength = round(abs(50.0 - rsi7), 2)
-        elif close_p > open_p and close_p > bb20_u and rsi7 > 80.0:
+        elif close_p > open_p and close_p >= bb20_u and rsi7 >= 72.0:
             signal = "PUT"
-            reason = f"[V1_Original | 30m] كسر BB(20,2) العلوي + RSI7={rsi7:.1f} + ADX={adx:.1f}"
+            reason = f"[V1_Original | 24h] كسر BB(20,2) العلوي + RSI7={rsi7:.1f} + ADX={adx:.1f}"
             confidence = 65
             strength = round(abs(50.0 - rsi7), 2)
         else:
-            reason = f"مراقبة V1_Original (RSI7={rsi7:.1f} | ADX={adx:.1f} | انتهاء 30 دقيقة)"
+            reason = f"مراقبة V1_Original (RSI7={rsi7:.1f} | ADX={adx:.1f})"
 
+    # الاستراتيجية 3 (مفتوحة 24 ساعة + شروط مخففة)
     elif strategy_id == "3":
         adx = float(c["adx"])
         if "JPY" in symbol:
-            reason = "استراتيجية S3_Calm_Plus_Day تستبعد أزواج الين (JPY)."
-        elif gaza_hour not in ALLOWED_HOURS_S3:
-            reason = f"خارج ساعات العمل بتوقيت غزة (22:00-08:00 و 13:00-14:00) — الساعة الحالية {gaza_hour:02d}:00."
-        elif adx >= 25.0:
-            reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 25) — تم تخطي الدخول."
-        elif rsi <= 28.0 and close_p <= bb_l:
+            reason = "استراتيجية S3_Calm تستبعد أزواج الين (JPY)."
+        elif adx >= 32.0:
+            reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 32) — تم تخطي الدخول."
+        elif rsi <= 34.0 and close_p <= bb_l:
             signal = "CALL"
-            reason = f"[S3 | 30m] تشبع بيعي RSI14={rsi:.1f} <= BB(15,2) + ADX={adx:.1f}"
+            reason = f"[S3 | 24h] تشبع بيعي RSI14={rsi:.1f} <= BB(15,2) + ADX={adx:.1f}"
             confidence = 63
             strength = round(abs(50.0 - rsi), 2)
-        elif rsi >= 72.0 and close_p >= bb_u:
+        elif rsi >= 66.0 and close_p >= bb_u:
             signal = "PUT"
-            reason = f"[S3 | 30m] تشبع شرائي RSI14={rsi:.1f} >= BB(15,2) + ADX={adx:.1f}"
+            reason = f"[S3 | 24h] تشبع شرائي RSI14={rsi:.1f} >= BB(15,2) + ADX={adx:.1f}"
             confidence = 63
             strength = round(abs(50.0 - rsi), 2)
         else:
-            reason = f"مراقبة S3_Calm_Plus_Day (RSI14={rsi:.1f} | ADX={adx:.1f} | انتهاء 30 دقيقة)"
+            reason = f"مراقبة S3_Calm (RSI14={rsi:.1f} | ADX={adx:.1f})"
 
+    # الاستراتيجية 4 (مفتوحة 24 ساعة + شروط مخففة)
     elif strategy_id == "4":
         zscore = float(c["zscore"])
         adx = float(c["adx"])
-        if adx >= 25.0:
-            reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 25) — تم تخطي الدخول."
-        elif close_p < open_p and zscore < -2.5 and rsi < 25.0:
+        if adx >= 32.0:
+            reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 32) — تم تخطي الدخول."
+        elif close_p < open_p and zscore <= -2.0 and rsi <= 32.0:
             signal = "CALL"
-            reason = f"[F4 | 5m] انحراف Z-Score={zscore:.2f} + RSI14={rsi:.1f} + ADX={adx:.1f}"
+            reason = f"[F4 | 24h] انحراف Z-Score={zscore:.2f} + RSI14={rsi:.1f} + ADX={adx:.1f}"
             confidence = 64
-            strength = round(abs(zscore), 2)
-        elif close_p > open_p and zscore > 2.5 and rsi > 75.0:
+            strength = round(abs(zscore) * 10.0, 2)
+        elif close_p > open_p and zscore >= 2.0 and rsi >= 68.0:
             signal = "PUT"
-            reason = f"[F4 | 5m] انحراف Z-Score={zscore:.2f} + RSI14={rsi:.1f} + ADX={adx:.1f}"
+            reason = f"[F4 | 24h] انحراف Z-Score={zscore:.2f} + RSI14={rsi:.1f} + ADX={adx:.1f}"
             confidence = 64
-            strength = round(abs(zscore), 2)
+            strength = round(abs(zscore) * 10.0, 2)
         else:
-            reason = f"مراقبة F4 (Z-Score={zscore:.2f} | RSI14={rsi:.1f} | ADX={adx:.1f} | انتهاء 5 دقائق)"
+            reason = f"مراقبة F4 (Z-Score={zscore:.2f} | RSI14={rsi:.1f} | ADX={adx:.1f})"
 
+    # الاستراتيجية 5 (استراتيجية الساعة Stoch) — بدون أي تعديل
     elif strategy_id == "5":
         k_curr = float(c["stoch_k"])
         d_curr = float(c["stoch_d"])
