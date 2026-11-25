@@ -26,8 +26,9 @@ TWELVE_DATA_KEYS = [
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
 GROQ_MODELS = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant"
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b"
 ]
 
 try:
@@ -35,8 +36,16 @@ try:
 except Exception:
     DISPLAY_TZ = datetime.timezone(datetime.timedelta(hours=2))
 
+# إعدادات الاستراتيجية الأساسية v5.3 الأصلية
+V53_BB_PERIOD = 15
+V53_BB_STD_DEV = 2.3
+V53_MIN_DISTANCE_PIPS = 1.0
+V53_BAN_START_HOUR_GAZA = 0
+V53_BAN_END_HOUR_GAZA = 9
+V53_FREEZE_SECONDS = 15 * 60
+
 STRATEGY_NAMES = {
-    "1": "1. M15 Sniper",
+    "1": "1. M15 Sniper (v5.3)",
     "2": "2. V1_Original",
     "3": "3. S3_Calm",
     "4": "4. F4_ZScore",
@@ -47,9 +56,11 @@ key_lock = threading.Lock()
 cache_lock = threading.Lock()
 ai_cache_lock = threading.Lock()
 autopilot_lock = threading.Lock()
+freeze_lock = threading.Lock()
 
 current_key_index = 0
 key_cooldowns = {0: 0.0, 1: 0.0, 2: 0.0}
+FROZEN_PAIRS_S1 = {}
 
 AUTO_PILOT_DURATION_SECONDS = 6 * 3600
 AUTO_PILOT_STATE = {
@@ -73,7 +84,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/7.0-GROQ"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/7.1-V53-GROQ"})
         thread_local.session = s
     return thread_local.session
 
@@ -113,7 +124,7 @@ def get_currencies(symbol):
     return {clean[:3], clean[3:6]} if len(clean) >= 6 else set()
 
 def normalize_strategy(raw_strat):
-    s = str(raw_strat or "0").strip().lower()
+    s = str(raw_strat or "1").strip().lower()
     if s in ("0", "all", "multi") or "all" in s or "0." in s:
         return "0"
     if s in ("1", "sniper", "m15", "default") or "sniper" in s or "1." in s:
@@ -126,7 +137,7 @@ def normalize_strategy(raw_strat):
         return "4"
     if s in ("5", "stoch", "stochastic", "h1") or "stoch" in s or "5." in s:
         return "5"
-    return "0"
+    return "1"
 
 def get_price_decimals(symbol):
     return 3 if "JPY" in symbol else 5
@@ -155,6 +166,35 @@ def cleanup_cache(now_ts):
         expired_ai = [k for k, (ts, _) in AI_CACHE_STORE.items() if now_ts - ts >= 600]
         for k in expired_ai:
             AI_CACHE_STORE.pop(k, None)
+    with freeze_lock:
+        expired_fr = [k for k, info in FROZEN_PAIRS_S1.items() if now_ts >= info["until"]]
+        for k in expired_fr:
+            FROZEN_PAIRS_S1.pop(k, None)
+
+def is_s1_frozen_for_new_candle(symbol, candle_ts):
+    now_ts = time.time()
+    with freeze_lock:
+        info = FROZEN_PAIRS_S1.get(symbol)
+        if not info:
+            return False, 0
+        if now_ts >= info["until"]:
+            FROZEN_PAIRS_S1.pop(symbol, None)
+            return False, 0
+        if info["candle_ts"] == candle_ts:
+            return False, 0
+        rem_min = max(1, int((info["until"] - now_ts + 59) // 60))
+        return True, rem_min
+
+def freeze_s1_pair(symbol, candle_ts):
+    now_ts = time.time()
+    with freeze_lock:
+        existing = FROZEN_PAIRS_S1.get(symbol)
+        if existing and existing["candle_ts"] == candle_ts and now_ts < existing["until"]:
+            return
+        FROZEN_PAIRS_S1[symbol] = {
+            "candle_ts": candle_ts,
+            "until": now_ts + V53_FREEZE_SECONDS
+        }
 
 def check_autopilot_state():
     now_ts = time.time()
@@ -266,8 +306,9 @@ def calculate_indicators(closed_df):
     df = closed_df.copy()
     if len(df) == 0:
         for col in [
-            "bb_mid", "bb_upper", "bb_lower", "bb20_upper", "bb20_lower",
-            "zscore", "ema200", "rsi", "rsi7", "atr", "adx", "stoch_k", "stoch_d"
+            "bb_mid", "bb_upper", "bb_lower", "bb23_upper", "bb23_lower",
+            "bb20_upper", "bb20_lower", "zscore", "ema200", "rsi", "rsi7",
+            "atr", "adx", "stoch_k", "stoch_d"
         ]:
             df[col] = np.nan
         return df
@@ -276,11 +317,14 @@ def calculate_indicators(closed_df):
     high = df["high"]
     low = df["low"]
 
-    sma15 = close.rolling(window=15, min_periods=15).mean()
-    std15 = close.rolling(window=15, min_periods=15).std(ddof=0)
+    # BB(15, 2.0) للاستراتيجية 3 و BB(15, 2.3) للاستراتيجية 1 الأصلية (v5.3)
+    sma15 = close.rolling(window=V53_BB_PERIOD, min_periods=V53_BB_PERIOD).mean()
+    std15 = close.rolling(window=V53_BB_PERIOD, min_periods=V53_BB_PERIOD).std(ddof=0)
     df["bb_mid"] = sma15
     df["bb_upper"] = sma15 + (2.0 * std15)
     df["bb_lower"] = sma15 - (2.0 * std15)
+    df["bb23_upper"] = sma15 + (V53_BB_STD_DEV * std15)
+    df["bb23_lower"] = sma15 - (V53_BB_STD_DEV * std15)
 
     sma20 = close.rolling(window=20, min_periods=20).mean()
     std20 = close.rolling(window=20, min_periods=20).std()
@@ -379,7 +423,7 @@ def detect_sr_and_fib(closed_df, symbol):
     return resistances, supports, fib_levels
 
 # ==========================================
-# 4. AI Agents Engine (Groq Ultra-Fast + Cache)
+# 4. AI Agents Engine (Groq Free-Tier Models + Cache)
 # ==========================================
 def call_groq_json(prompt_text, timeout_sec=12):
     if not GROQ_API_KEY:
@@ -608,7 +652,7 @@ def run_agent_correlation_assassin(signals_list):
     return kept, killed
 
 # ==========================================
-# 5. Strategy Evaluation (Single + All 5)
+# 5. Strategy Evaluation (v5.3 Original + Auxiliary)
 # ==========================================
 def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
     decimals = get_price_decimals(symbol)
@@ -630,10 +674,11 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
 
     c = closed_df.iloc[-1]
     prev = closed_df.iloc[-2]
+    candle_ts = int(c["open_ts"]) if "open_ts" in closed_df.columns else 0
 
     required_cols = []
     if strategy_id == "1":
-        required_cols = ["bb_upper", "bb_lower", "ema200", "rsi", "atr"]
+        required_cols = ["bb23_upper", "bb23_lower", "ema200"]
     elif strategy_id == "2":
         required_cols = ["bb20_upper", "bb20_lower", "rsi7", "adx", "atr"]
     elif strategy_id == "3":
@@ -670,42 +715,50 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
     atr = float(c["atr"]) if not pd.isna(c["atr"]) else 0.0
 
     resistances, supports, fib_levels = detect_sr_and_fib(closed_df, symbol)
+    local_now = datetime.datetime.now(DISPLAY_TZ)
 
     signal = "WAIT"
     reason = "بانتظار إشارة مطابقة للشروط"
     confidence = 0
     strength = 0.0
 
-    # الاستراتيجية 1 (الأساسية) — بدون أي تعديل إطلاقاً
+    # الاستراتيجية 1 (v5.3 الأصلية حرفياً: BB(15, 2.3) + EMA200 + مسافة >= 1.0 نقطة + حظر ليلي/أسبوعي + تجميد 15د)
     if strategy_id == "1":
-        candle_range = max(high_p - low_p, 1e-9)
-        body_size = abs(close_p - open_p)
-        lower_wick = min(open_p, close_p) - low_p
-        upper_wick = high_p - max(open_p, close_p)
-        not_blowout = (atr <= 0.0) or (body_size <= 2.2 * atr)
+        bb23_u = float(c["bb23_upper"])
+        bb23_l = float(c["bb23_lower"])
+        bb_u, bb_l = bb23_u, bb23_l
+        pip_mult = 100.0 if "JPY" in symbol else 10000.0
 
-        if close_p > ema200 and close_p <= bb_l and rsi <= 42.0 and not_blowout:
-            signal = "CALL"
-            reason = f"[A+] إغلاق مؤكد <= البولينجر السفلي وفوق EMA 200 (RSI={rsi:.1f})"
-            confidence = 62
-            strength = round(abs(50.0 - rsi), 2)
-        elif close_p < ema200 and close_p >= bb_u and rsi >= 58.0 and not_blowout:
-            signal = "PUT"
-            reason = f"[A+] إغلاق مؤكد >= البولينجر العلوي وتحت EMA 200 (RSI={rsi:.1f})"
-            confidence = 62
-            strength = round(abs(50.0 - rsi), 2)
-        elif close_p > ema200 and low_p <= bb_l and (lower_wick / candle_range) >= 0.35 and rsi <= 42.0 and not_blowout:
-            signal = "CALL"
-            reason = f"[A] ذيل رفض سفلي قوي عند البولينجر السفلي وفوق EMA 200 (RSI={rsi:.1f})"
-            confidence = 58
-            strength = round(abs(50.0 - rsi), 2)
-        elif close_p < ema200 and high_p >= bb_u and (upper_wick / candle_range) >= 0.35 and rsi >= 58.0 and not_blowout:
-            signal = "PUT"
-            reason = f"[A] ذيل رفض علوي قوي عند البولينجر العلوي وتحت EMA 200 (RSI={rsi:.1f})"
-            confidence = 58
-            strength = round(abs(50.0 - rsi), 2)
+        frozen, rem_min = is_s1_frozen_for_new_candle(symbol, candle_ts)
+
+        if local_now.weekday() >= 5:
+            reason = "عطلة نهاية الأسبوع بتوقيت غزة — تم إيقاف إشارات v5.3."
+        elif V53_BAN_START_HOUR_GAZA <= local_now.hour < V53_BAN_END_HOUR_GAZA:
+            reason = f"داخل ساعات الحظر الليلي بتوقيت غزة (00:00 - 09:00) — الساعة الآن {local_now.hour:02d}:00."
+        elif frozen:
+            reason = f"❄️ الزوج مجمد مؤقتاً ({rem_min} دقيقة متبقية) بعد الإشارة السابقة لحماية الرصيد."
+        elif close_p > ema200 and close_p <= bb23_l:
+            dist_pips = (bb23_l - close_p) * pip_mult
+            if dist_pips >= V53_MIN_DISTANCE_PIPS:
+                signal = "CALL"
+                reason = f"[v5.3 الأصلية] اختراق مؤكد أسفل BB(15, 2.3) بمسافة {dist_pips:.1f} نقطة فوق EMA 200"
+                confidence = 72
+                strength = round(dist_pips * 10.0, 2)
+                freeze_s1_pair(symbol, candle_ts)
+            else:
+                reason = f"لمسة ضعيفة عند BB(15, 2.3) السفلي ({dist_pips:.2f} نقطة < {V53_MIN_DISTANCE_PIPS}) — تم التخطي."
+        elif close_p < ema200 and close_p >= bb23_u:
+            dist_pips = (close_p - bb23_u) * pip_mult
+            if dist_pips >= V53_MIN_DISTANCE_PIPS:
+                signal = "PUT"
+                reason = f"[v5.3 الأصلية] اختراق مؤكد أعلى BB(15, 2.3) بمسافة {dist_pips:.1f} نقطة تحت EMA 200"
+                confidence = 72
+                strength = round(dist_pips * 10.0, 2)
+                freeze_s1_pair(symbol, candle_ts)
+            else:
+                reason = f"لمسة ضعيفة عند BB(15, 2.3) العلوي ({dist_pips:.2f} نقطة < {V53_MIN_DISTANCE_PIPS}) — تم التخطي."
         else:
-            reason = "بانتظار إغلاق أو ذيل رفض عند BB(15, 2.0) مع توافق EMA 200"
+            reason = "بانتظار إغلاق كامل خارج BB(15, 2.3) بمسافة >= 1.0 نقطة مع توافق EMA 200"
 
     # الاستراتيجية 2 (24 ساعة + مرنة + درع الحماية الثلاثي)
     elif strategy_id == "2":
@@ -966,7 +1019,7 @@ def index():
 def api_analyze(
     symbol: str = Query(default="EUR/USD"),
     timeframe: str = Query(default="15M"),
-    strategy: str = Query(default="0"),
+    strategy: str = Query(default="1"),
     agent_court: int = Query(default=0),
     agent_mtf: int = Query(default=0)
 ):
@@ -992,8 +1045,12 @@ def api_analyze(
 
     analysis["agents"] = agents_report
 
-    bb_u_col = "bb20_upper" if strat_id == "2" else "bb_upper"
-    bb_l_col = "bb20_lower" if strat_id == "2" else "bb_lower"
+    if strat_id == "1":
+        bb_u_col, bb_l_col = "bb23_upper", "bb23_lower"
+    elif strat_id == "2":
+        bb_u_col, bb_l_col = "bb20_upper", "bb20_lower"
+    else:
+        bb_u_col, bb_l_col = "bb_upper", "bb_lower"
 
     chart_df = closed_df.tail(90).copy()
     candles = []
@@ -1023,7 +1080,7 @@ def api_analyze(
 @app.get("/scan")
 def api_scan(
     timeframe: str = Query(default="15M"),
-    strategy: str = Query(default="0"),
+    strategy: str = Query(default="1"),
     mode: str = Query(default="manual"),
     agent_court: int = Query(default=0),
     agent_mtf: int = Query(default=0),
