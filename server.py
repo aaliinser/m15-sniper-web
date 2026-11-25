@@ -27,8 +27,8 @@ FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 GEMINI_MODELS = [
     "gemini-flash-latest",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite"
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
 ]
 
 try:
@@ -72,7 +72,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.2-AI-RELAXED"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.3-SHIELD"})
         thread_local.session = s
     return thread_local.session
 
@@ -612,11 +612,11 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
     if strategy_id == "1":
         required_cols = ["bb_upper", "bb_lower", "ema200", "rsi", "atr"]
     elif strategy_id == "2":
-        required_cols = ["bb20_upper", "bb20_lower", "rsi7", "adx"]
+        required_cols = ["bb20_upper", "bb20_lower", "rsi7", "adx", "atr"]
     elif strategy_id == "3":
-        required_cols = ["bb_upper", "bb_lower", "rsi", "adx"]
+        required_cols = ["bb_upper", "bb_lower", "rsi", "adx", "atr"]
     elif strategy_id == "4":
-        required_cols = ["zscore", "rsi", "adx"]
+        required_cols = ["zscore", "rsi", "adx", "atr"]
     elif strategy_id == "5":
         required_cols = ["ema200", "stoch_k", "stoch_d"]
 
@@ -653,7 +653,7 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
     confidence = 0
     strength = 0.0
 
-    # الاستراتيجية 1 (الأساسية) — بدون أي تعديل
+    # الاستراتيجية 1 (الأساسية) — بدون أي تعديل إطلاقاً
     if strategy_id == "1":
         candle_range = max(high_p - low_p, 1e-9)
         body_size = abs(close_p - open_p)
@@ -684,71 +684,118 @@ def evaluate_single_strategy(closed_df, live_price, symbol, strategy_id):
         else:
             reason = "بانتظار إغلاق أو ذيل رفض عند BB(15, 2.0) مع توافق EMA 200"
 
-    # الاستراتيجية 2 (مفتوحة 24 ساعة + شروط مخففة)
+    # الاستراتيجية 2 (24 ساعة + مرنة + درع الحماية الثلاثي)
     elif strategy_id == "2":
         bb20_u = float(c["bb20_upper"])
         bb20_l = float(c["bb20_lower"])
         rsi7 = float(c["rsi7"])
         adx = float(c["adx"])
+        adx_prev = float(prev["adx"]) if not pd.isna(prev["adx"]) else adx
         bb_u, bb_l = bb20_u, bb20_l
+
+        candle_range = max(high_p - low_p, 1e-9)
+        body_size = abs(close_p - open_p)
+        lower_wick = min(open_p, close_p) - low_p
+        upper_wick = high_p - max(open_p, close_p)
+
+        adx_rising_fast = (adx - adx_prev) > 1.5
+        is_rocket = (atr > 0.0) and (body_size > 1.5 * atr)
+        has_call_wick = (lower_wick / candle_range) >= 0.25
+        has_put_wick = (upper_wick / candle_range) >= 0.25
 
         if "JPY" in symbol:
             reason = "استراتيجية V1_Original تستبعد أزواج الين (JPY)."
         elif adx >= 32.0:
             reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 32) — تم تخطي الدخول."
-        elif close_p < open_p and close_p <= bb20_l and rsi7 <= 28.0:
+        elif adx_rising_fast:
+            reason = f"🛡️ درع الحماية: تسارع ترند مفاجئ (ADX صعد من {adx_prev:.1f} إلى {adx:.1f})."
+        elif is_rocket:
+            reason = "🛡️ درع الحماية: شمعة اندفاع صاروخي ضخمة — ممنوع الدخول عكسها."
+        elif close_p < open_p and close_p <= bb20_l and rsi7 <= 28.0 and has_call_wick:
             signal = "CALL"
-            reason = f"[V1_Original | 24h] كسر BB(20,2) السفلي + RSI7={rsi7:.1f} + ADX={adx:.1f}"
-            confidence = 65
+            reason = f"[V1_Original | 🛡️ درع مفعّل] كسر BB(20,2) السفلي + ذيل رفض + RSI7={rsi7:.1f} + ADX={adx:.1f}"
+            confidence = 68
             strength = round(abs(50.0 - rsi7), 2)
-        elif close_p > open_p and close_p >= bb20_u and rsi7 >= 72.0:
+        elif close_p > open_p and close_p >= bb20_u and rsi7 >= 72.0 and has_put_wick:
             signal = "PUT"
-            reason = f"[V1_Original | 24h] كسر BB(20,2) العلوي + RSI7={rsi7:.1f} + ADX={adx:.1f}"
-            confidence = 65
+            reason = f"[V1_Original | 🛡️ درع مفعّل] كسر BB(20,2) العلوي + ذيل رفض + RSI7={rsi7:.1f} + ADX={adx:.1f}"
+            confidence = 68
             strength = round(abs(50.0 - rsi7), 2)
         else:
             reason = f"مراقبة V1_Original (RSI7={rsi7:.1f} | ADX={adx:.1f})"
 
-    # الاستراتيجية 3 (مفتوحة 24 ساعة + شروط مخففة)
+    # الاستراتيجية 3 (24 ساعة + مرنة + درع الحماية الثلاثي)
     elif strategy_id == "3":
         adx = float(c["adx"])
+        adx_prev = float(prev["adx"]) if not pd.isna(prev["adx"]) else adx
+
+        candle_range = max(high_p - low_p, 1e-9)
+        body_size = abs(close_p - open_p)
+        lower_wick = min(open_p, close_p) - low_p
+        upper_wick = high_p - max(open_p, close_p)
+
+        adx_rising_fast = (adx - adx_prev) > 1.5
+        is_rocket = (atr > 0.0) and (body_size > 1.5 * atr)
+        has_call_wick = (lower_wick / candle_range) >= 0.25
+        has_put_wick = (upper_wick / candle_range) >= 0.25
+
         if "JPY" in symbol:
             reason = "استراتيجية S3_Calm تستبعد أزواج الين (JPY)."
         elif adx >= 32.0:
             reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 32) — تم تخطي الدخول."
-        elif rsi <= 34.0 and close_p <= bb_l:
+        elif adx_rising_fast:
+            reason = f"🛡️ درع الحماية: تسارع ترند مفاجئ (ADX صعد من {adx_prev:.1f} إلى {adx:.1f})."
+        elif is_rocket:
+            reason = "🛡️ درع الحماية: شمعة اندفاع صاروخي ضخمة — ممنوع الدخول عكسها."
+        elif rsi <= 34.0 and close_p <= bb_l and has_call_wick:
             signal = "CALL"
-            reason = f"[S3 | 24h] تشبع بيعي RSI14={rsi:.1f} <= BB(15,2) + ADX={adx:.1f}"
-            confidence = 63
+            reason = f"[S3 | 🛡️ درع مفعّل] تشبع بيعي RSI14={rsi:.1f} <= BB(15,2) + ذيل رفض + ADX={adx:.1f}"
+            confidence = 66
             strength = round(abs(50.0 - rsi), 2)
-        elif rsi >= 66.0 and close_p >= bb_u:
+        elif rsi >= 66.0 and close_p >= bb_u and has_put_wick:
             signal = "PUT"
-            reason = f"[S3 | 24h] تشبع شرائي RSI14={rsi:.1f} >= BB(15,2) + ADX={adx:.1f}"
-            confidence = 63
+            reason = f"[S3 | 🛡️ درع مفعّل] تشبع شرائي RSI14={rsi:.1f} >= BB(15,2) + ذيل رفض + ADX={adx:.1f}"
+            confidence = 66
             strength = round(abs(50.0 - rsi), 2)
         else:
             reason = f"مراقبة S3_Calm (RSI14={rsi:.1f} | ADX={adx:.1f})"
 
-    # الاستراتيجية 4 (مفتوحة 24 ساعة + شروط مخففة)
+    # الاستراتيجية 4 (24 ساعة + مرنة + درع الحماية الثلاثي)
     elif strategy_id == "4":
         zscore = float(c["zscore"])
         adx = float(c["adx"])
+        adx_prev = float(prev["adx"]) if not pd.isna(prev["adx"]) else adx
+
+        candle_range = max(high_p - low_p, 1e-9)
+        body_size = abs(close_p - open_p)
+        lower_wick = min(open_p, close_p) - low_p
+        upper_wick = high_p - max(open_p, close_p)
+
+        adx_rising_fast = (adx - adx_prev) > 1.5
+        is_rocket = (atr > 0.0) and (body_size > 1.5 * atr)
+        has_call_wick = (lower_wick / candle_range) >= 0.25
+        has_put_wick = (upper_wick / candle_range) >= 0.25
+
         if adx >= 32.0:
             reason = f"السوق في ترند قوي (ADX={adx:.1f} >= 32) — تم تخطي الدخول."
-        elif close_p < open_p and zscore <= -2.0 and rsi <= 32.0:
+        elif adx_rising_fast:
+            reason = f"🛡️ درع الحماية: تسارع ترند مفاجئ (ADX صعد من {adx_prev:.1f} إلى {adx:.1f})."
+        elif is_rocket:
+            reason = "🛡️ درع الحماية: شمعة اندفاع صاروخي ضخمة — ممنوع الدخول عكسها."
+        elif close_p < open_p and zscore <= -2.0 and rsi <= 32.0 and has_call_wick:
             signal = "CALL"
-            reason = f"[F4 | 24h] انحراف Z-Score={zscore:.2f} + RSI14={rsi:.1f} + ADX={adx:.1f}"
-            confidence = 64
+            reason = f"[F4 | 🛡️ درع مفعّل] انحراف Z-Score={zscore:.2f} + ذيل رفض + RSI14={rsi:.1f} + ADX={adx:.1f}"
+            confidence = 67
             strength = round(abs(zscore) * 10.0, 2)
-        elif close_p > open_p and zscore >= 2.0 and rsi >= 68.0:
+        elif close_p > open_p and zscore >= 2.0 and rsi >= 68.0 and has_put_wick:
             signal = "PUT"
-            reason = f"[F4 | 24h] انحراف Z-Score={zscore:.2f} + RSI14={rsi:.1f} + ADX={adx:.1f}"
-            confidence = 64
+            reason = f"[F4 | 🛡️ درع مفعّل] انحراف Z-Score={zscore:.2f} + ذيل رفض + RSI14={rsi:.1f} + ADX={adx:.1f}"
+            confidence = 67
             strength = round(abs(zscore) * 10.0, 2)
         else:
             reason = f"مراقبة F4 (Z-Score={zscore:.2f} | RSI14={rsi:.1f} | ADX={adx:.1f})"
 
-    # الاستراتيجية 5 (استراتيجية الساعة Stoch) — بدون أي تعديل
+    # الاستراتيجية 5 (استراتيجية الساعة Stoch) — بدون أي تعديل إطلاقاً
     elif strategy_id == "5":
         k_curr = float(c["stoch_k"])
         d_curr = float(c["stoch_d"])
