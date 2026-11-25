@@ -25,10 +25,7 @@ TWELVE_DATA_KEYS = [
 ]
 FINNHUB_API_KEY = "d75bfl9r01qk56kc51dgd75bfl9r01qk56kc51e0"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODELS = [
-    "gemini-flash-latest",
-    "gemini-2.5-flash"
-]
+GEMINI_MODEL = "gemini-flash-latest"
 
 try:
     DISPLAY_TZ = ZoneInfo("Asia/Hebron")
@@ -71,7 +68,7 @@ def get_http_session():
         s = requests.Session()
         adapter = HTTPAdapter(pool_connections=16, pool_maxsize=16)
         s.mount("https://", adapter)
-        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.4-AI-CLEAN"})
+        s.headers.update({"User-Agent": "M15-Sniper-PRO/6.6-FINAL"})
         thread_local.session = s
     return thread_local.session
 
@@ -373,28 +370,30 @@ def detect_sr_and_fib(closed_df, symbol):
     return resistances, supports, fib_levels
 
 # ==========================================
-# 4. AI Agents Engine (Clean Gemini Flash)
+# 4. AI Agents Engine (Exact Official Endpoint)
 # ==========================================
-def call_gemini_json(prompt_text, timeout_sec=15):
+def call_gemini_json(prompt_text, timeout_sec=20):
     if not GEMINI_API_KEY:
         return {"_error": "مفتاح GEMINI_API_KEY غير مضاف في Render"}
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
     headers = {
         "Content-Type": "application/json",
         "X-goog-api-key": GEMINI_API_KEY
     }
-    session = get_http_session()
-    last_error = "تأخر استجابة سيرفرات Gemini"
-
-    for model in GEMINI_MODELS:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        payload = {
-            "contents": [{"parts": [{"text": prompt_text}]}],
-            "generationConfig": {
-                "temperature": 0.2,
-                "responseMimeType": "application/json"
-            }
+    payload = {
+        "contents": [{"parts": [{"text": prompt_text}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 300,
+            "responseMimeType": "application/json"
         }
+    }
+
+    session = get_http_session()
+    last_error = "تأخر استجابة سيرفر Gemini"
+
+    for attempt in range(2):
         try:
             resp = session.post(url, headers=headers, json=payload, timeout=timeout_sec)
             if resp.status_code == 200:
@@ -405,10 +404,19 @@ def call_gemini_json(prompt_text, timeout_sec=15):
                 if isinstance(parsed, dict):
                     return parsed
                 last_error = "رد غير متوقع من Gemini"
-                continue
-            last_error = f"HTTP {resp.status_code} ({model})"
+            elif resp.status_code in (429, 500, 502, 503, 504):
+                last_error = f"ضغط مؤقت على سيرفر Google (HTTP {resp.status_code})"
+                if attempt == 0:
+                    time.sleep(1.5)
+                    continue
+            else:
+                last_error = f"HTTP {resp.status_code}: {resp.text[:100]}"
+                break
         except Exception as e:
-            last_error = f"{model}: {str(e)[:90]}"
+            last_error = f"انقطاع مؤقت: {str(e)[:80]}"
+            if attempt == 0:
+                time.sleep(1.0)
+                continue
 
     return {"_error": last_error}
 
@@ -440,7 +448,7 @@ def run_agent_court(symbol, timeframe, closed_df, analysis):
         '"judge_note": "قرار القاضي النهائي في جملة واحدة"}'
     )
 
-    res = call_gemini_json(prompt, timeout_sec=15)
+    res = call_gemini_json(prompt, timeout_sec=20)
     if not isinstance(res, dict) or "verdict" not in res:
         err_detail = res.get("_error", "تأخر استجابة الـ API") if isinstance(res, dict) else "تأخر استجابة الـ API"
         return {
@@ -550,7 +558,7 @@ def run_agent_correlation_assassin(signals_list):
             "وارجع JSON فقط بالشكل:\n"
             '{"keep_symbols": ["EUR/USD"], "note": "سبب الاختيار في جملة قصيرة بالعربية"}'
         )
-        ai_res = call_gemini_json(prompt, timeout_sec=12)
+        ai_res = call_gemini_json(prompt, timeout_sec=15)
         if isinstance(ai_res, dict) and isinstance(ai_res.get("keep_symbols"), list):
             ai_keep = {normalize_symbol(sym) for sym in ai_res["keep_symbols"] if isinstance(sym, str) and sym.strip()}
             ai_note = str(ai_res.get("note", "تمت التصفية لمنع تداخل العملات."))
