@@ -109,10 +109,10 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 400px 1fr;
+      grid-template-columns: 380px 1fr;
       gap: 14px;
       padding: 14px;
-      max-width: 1680px;
+      max-width: 1650px;
       margin: 0 auto;
     }
 
@@ -192,15 +192,10 @@
       color: #fff;
     }
 
-    .btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
     .btn-gold { background: var(--gold); color: #090d16; }
-    .btn-gold:hover:not(:disabled) { background: var(--gold-hover); }
+    .btn-gold:hover { background: var(--gold-hover); }
     .btn-dark { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); }
-    .btn-dark:hover:not(:disabled) { border-color: var(--gold); }
+    .btn-dark:hover { border-color: var(--gold); }
     .btn-green { background: var(--green); color: #052e16; }
     .btn-red { background: var(--red); color: #fff; }
 
@@ -247,117 +242,6 @@
       background: var(--gold);
       color: #090d16;
       border-color: var(--gold);
-    }
-
-    .ai-panel {
-      background: var(--bg-input);
-      border: 1px solid #26334d;
-      border-radius: 10px;
-      padding: 10px;
-      margin-bottom: 12px;
-    }
-
-    .ai-panel-title {
-      font-size: 12px;
-      font-weight: 800;
-      color: #c4b5fd;
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .ai-toggles-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .ai-toggle-btn {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 7px 10px;
-      border-radius: 8px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .ai-toggle-btn.on {
-      border-color: var(--green);
-      background: rgba(16, 185, 129, 0.12);
-      color: #ecfdf5;
-    }
-
-    .ai-pill {
-      font-size: 10px;
-      font-family: monospace;
-      padding: 2px 7px;
-      border-radius: 12px;
-      background: #1e293b;
-      color: #94a3b8;
-    }
-
-    .ai-toggle-btn.on .ai-pill {
-      background: var(--green);
-      color: #052e16;
-    }
-
-    .ai-report-box {
-      display: none;
-      margin-top: 10px;
-      text-align: right;
-      background: #0a101f;
-      border: 1px solid #283552;
-      border-radius: 10px;
-      padding: 10px;
-      font-size: 12px;
-      line-height: 1.55;
-    }
-
-    .verdict-badge {
-      display: inline-block;
-      padding: 3px 9px;
-      border-radius: 6px;
-      font-weight: 800;
-      font-size: 11px;
-      font-family: monospace;
-      margin-bottom: 6px;
-    }
-
-    .verdict-approved { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--green); color: #34d399; }
-    .verdict-half { background: rgba(245, 158, 11, 0.2); border: 1px solid var(--gold); color: #fbbf24; }
-    .verdict-veto { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--red); color: #f87171; }
-
-    .strat-tag {
-      display: inline-block;
-      background: rgba(59, 130, 246, 0.16);
-      border: 1px solid rgba(59, 130, 246, 0.45);
-      color: #93c5fd;
-      padding: 2px 7px;
-      border-radius: 5px;
-      font-size: 10px;
-      font-weight: 700;
-      margin-top: 3px;
-    }
-
-    .strat-tag.confluence {
-      background: rgba(245, 158, 11, 0.2);
-      border-color: var(--gold);
-      color: #fde68a;
-    }
-
-    .mtf-line {
-      margin-top: 6px;
-      padding-top: 6px;
-      border-top: 1px dashed var(--border);
-      color: #cbd5e1;
     }
 
     .action-grid {
@@ -444,59 +328,23 @@
       border-radius: 10px;
       padding: 10px;
       font-size: 12px;
-      max-height: 360px;
+      max-height: 280px;
       overflow-y: auto;
     }
 
     .scan-item {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 8px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 8px;
       border-radius: 7px;
       background: var(--bg-card);
       margin-bottom: 6px;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: 0.15s;
     }
 
-    .scan-item:hover { border-color: var(--gold); background: #19243d; }
-
-    .scan-item-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .scan-item-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .all-pairs-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 4px;
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px dashed var(--border);
-    }
-
-    .mini-pair-chip {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 6px;
-      font-family: monospace;
-      font-size: 10px;
-      display: flex;
-      justify-content: space-between;
-      cursor: pointer;
-      color: var(--text-muted);
-    }
-
-    .mini-pair-chip:hover { border-color: var(--gold); color: #fff; }
+    .scan-item:hover { border-color: var(--gold); }
 
     .chart-header {
       display: flex;
@@ -540,7 +388,7 @@
     .chart-container {
       position: relative;
       width: 100%;
-      height: 580px;
+      height: 540px;
       background: #050811;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -650,7 +498,7 @@
       padding: 12px 16px;
       color: #f8fafc;
       font-size: 13px;
-      max-width: 360px;
+      max-width: 340px;
       display: none;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
     }
@@ -660,7 +508,7 @@
 
   <header class="topbar">
     <div class="brand">
-      🎯 M15 SNIPER PRO <span class="badge">AI AGENTS + ALL 5</span>
+      🎯 M15 SNIPER PRO <span class="badge">QUANT TERMINAL</span>
     </div>
     <div class="sessions-bar" id="sessionsBar">
       <div class="session-pill" id="sess-sydney"><span class="session-dot"></span> سيدني</div>
@@ -695,11 +543,10 @@
         <div class="form-group">
           <label for="strategySelect">الاستراتيجية المعتمدة</label>
           <select id="strategySelect">
-            <option value="0" selected>🔥 0. جميع الاستراتيجيات معاً (ALL 5)</option>
             <option value="1">1. M15 Sniper PRO (الأساسية)</option>
-            <option value="2">2. V1_Original (M15 → 30m | هدوء 22-08)</option>
-            <option value="3">3. S3_Calm_Plus_Day (M15 → 30m | 22-08 و 13-14)</option>
-            <option value="4">4. F4_Z2.5_R14_25 (M5 → 5m | 24 ساعة)</option>
+            <option value="2">2. مع الاتجاه (Trend Following)</option>
+            <option value="3">3. سكالبينج سريع (Scalp Reversal)</option>
+            <option value="4">4. الارتداد والبرايس أكشن (S/R)</option>
             <option value="5">5. Stochastic Extreme Reversal (H1 / 9,5)</option>
           </select>
         </div>
@@ -714,30 +561,9 @@
           </div>
         </div>
 
-        <div class="ai-panel">
-          <div class="ai-panel-title">
-            <span>🤖 وكلاء الذكاء الاصطناعي (Gemini)</span>
-            <span style="font-size:10px;color:var(--text-muted)">تشغيل / إيقاف مستقل</span>
-          </div>
-          <div class="ai-toggles-list">
-            <button type="button" class="ai-toggle-btn" id="btnAgentCourt" data-agent="court">
-              <span>⚖️ 1. محكمة الصفقة (قناص ضد فخوخ)</span>
-              <span class="ai-pill">OFF</span>
-            </button>
-            <button type="button" class="ai-toggle-btn" id="btnAgentMtf" data-agent="mtf">
-              <span>🛡️ 2. حارس فريم الساعة والأرقام النفسية</span>
-              <span class="ai-pill">OFF</span>
-            </button>
-            <button type="button" class="ai-toggle-btn" id="btnAgentCorr" data-agent="corr">
-              <span>🔗 3. صائد الارتباطات (منع الفخ المزدوج)</span>
-              <span class="ai-pill">OFF</span>
-            </button>
-          </div>
-        </div>
-
         <div class="action-grid">
           <button class="btn btn-dark" id="analyzeBtn">🎯 فحص الزوج الحالي</button>
-          <button class="btn btn-gold" id="scanBtn">🔍 مسح السوق (22 زوجاً)</button>
+          <button class="btn btn-gold" id="scanBtn">🔍 مسح 22/22 زوجاً</button>
         </div>
 
         <div class="countdown-box">
@@ -752,11 +578,10 @@
           </div>
           <div class="signal-box" id="signalBox">بانتظار الفحص...</div>
           <div class="signal-reason" id="signalReason">اضغط على فحص الزوج الحالي أو مسح السوق للبدء.</div>
-          <div class="ai-report-box" id="aiReportBox"></div>
         </div>
 
         <div class="scan-results" id="scanResults">
-          <div style="color:var(--text-muted);text-align:center;">نتائج المسح الشامل لـ 22 زوجاً ستظهر هنا...</div>
+          <div style="color:var(--text-muted);text-align:center;">نتائج المسح الشامل ستظهر هنا...</div>
         </div>
       </div>
 
@@ -859,122 +684,13 @@
 
       let currentSymbol = "EUR/USD";
       let currentTimeframe = "15M";
-      let currentStrategy = "0";
+      let currentStrategy = "1";
       let lastChartData = null;
       let finnhubSocket = null;
       let finnhubKey = "";
       let lastAutoScanStamp = "";
-      let isManualScanning = false;
 
       const toggles = { ema: true, bb: true, fib: true, sr: true, tv: false };
-
-      function escapeHtml(str) {
-        return String(str ?? "")
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
-      }
-
-      function copyTextInstant(text) {
-        const val = String(text || "");
-        if (!val) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(val).catch(() => fallbackCopy(val));
-        } else {
-          fallbackCopy(val);
-        }
-      }
-
-      function fallbackCopy(val) {
-        try {
-          const ta = document.createElement("textarea");
-          ta.value = val;
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.focus();
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-        } catch (_) {}
-      }
-
-      function readStoredFlag(key) {
-        try { return localStorage.getItem(key) === "1"; } catch (_) { return false; }
-      }
-
-      function writeStoredFlag(key, val) {
-        try { localStorage.setItem(key, val ? "1" : "0"); } catch (_) {}
-      }
-
-      const aiState = {
-        court: readStoredFlag("ai_court"),
-        mtf: readStoredFlag("ai_mtf"),
-        corr: readStoredFlag("ai_corr")
-      };
-
-      function syncAgentButtons() {
-        document.querySelectorAll(".ai-toggle-btn").forEach(btn => {
-          const key = btn.dataset.agent;
-          const isOn = !!aiState[key];
-          btn.classList.toggle("on", isOn);
-          const pill = btn.querySelector(".ai-pill");
-          if (pill) pill.textContent = isOn ? "ON" : "OFF";
-        });
-      }
-
-      document.querySelectorAll(".ai-toggle-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const key = btn.dataset.agent;
-          aiState[key] = !aiState[key];
-          writeStoredFlag("ai_" + key, aiState[key]);
-          syncAgentButtons();
-        });
-      });
-      syncAgentButtons();
-
-      function getAgentQueryParams() {
-        return `&agent_court=${aiState.court ? 1 : 0}&agent_mtf=${aiState.mtf ? 1 : 0}&agent_corr=${aiState.corr ? 1 : 0}`;
-      }
-
-      function renderVerdictBadge(verdict) {
-        const v = String(verdict || "").toUpperCase();
-        const safeV = escapeHtml(v || "HALF RISK");
-        if (v.includes("APPROVED") || v.includes("A+")) {
-          return `<span class="verdict-badge verdict-approved">✅ ${safeV}</span>`;
-        }
-        if (v.includes("VETO") || v.includes("TRAP")) {
-          return `<span class="verdict-badge verdict-veto">⛔ ${safeV}</span>`;
-        }
-        return `<span class="verdict-badge verdict-half">⚠️ ${safeV}</span>`;
-      }
-
-      function renderAgentsReport(agents) {
-        const box = document.getElementById("aiReportBox");
-        if (!agents || (!agents.court && !agents.mtf)) {
-          box.style.display = "none";
-          box.innerHTML = "";
-          return;
-        }
-        let html = "";
-        if (agents.court) {
-          const c = agents.court;
-          html += `<div>
-            <div style="margin-bottom:4px;">⚖️ <b>محكمة الصفقة:</b> ${renderVerdictBadge(c.verdict)}</div>
-            <div style="color:#a7f3d0;">🎯 <b>القنّاص:</b> ${escapeHtml(c.sniper || "-")}</div>
-            <div style="color:#fca5a5;">🕵️ <b>صائد الفخوخ:</b> ${escapeHtml(c.trap_hunter || "-")}</div>
-            <div style="color:#fde68a;">👨‍⚖️ <b>القاضي:</b> ${escapeHtml(c.judge_note || "-")}</div>
-          </div>`;
-        }
-        if (agents.mtf) {
-          const m = agents.mtf;
-          html += `<div class="mtf-line">🛡️ <b>حارس الساعة والأرقام:</b> ${escapeHtml(m.summary || "-")}</div>`;
-        }
-        box.innerHTML = html;
-        box.style.display = "block";
-      }
 
       const pairSelect = document.getElementById("pairSelect");
       PAIRS_22.forEach(p => {
@@ -989,8 +705,7 @@
           document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
           document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
           btn.classList.add("active");
-          const target = document.getElementById("tab-" + btn.dataset.tab);
-          if (target) target.classList.add("active");
+          document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
         });
       });
 
@@ -1020,7 +735,7 @@
       });
 
       document.getElementById("copyPairBtn").addEventListener("click", () => {
-        copyTextInstant(currentSymbol);
+        navigator.clipboard.writeText(currentSymbol).catch(() => {});
         const btn = document.getElementById("copyPairBtn");
         btn.textContent = "✅ تم النسخ";
         setTimeout(() => { btn.textContent = "📋 نسخ"; }, 1200);
@@ -1029,23 +744,6 @@
       function updateHeaderTitles() {
         document.getElementById("activePairDisplay").textContent = currentSymbol;
         document.getElementById("chartTitle").textContent = `${currentSymbol} — ${currentTimeframe}`;
-      }
-
-      function selectAndCopyPair(sym) {
-        if (!sym) return;
-        currentSymbol = sym;
-        pairSelect.value = currentSymbol;
-        updateHeaderTitles();
-        copyTextInstant(currentSymbol);
-        const copyBtn = document.getElementById("copyPairBtn");
-        if (copyBtn) {
-          copyBtn.textContent = "✅ تم النسخ";
-          setTimeout(() => { copyBtn.textContent = "📋 نسخ"; }, 1200);
-        }
-        showApToast(`📋 تم نسخ <b>${escapeHtml(currentSymbol)}</b> وتحويل الشارت والإشارات عليه.`, "#3b82f6");
-        connectFinnhub(currentSymbol);
-        if (toggles.tv) loadTradingView();
-        analyzeCurrentPair(true);
       }
 
       document.querySelectorAll(".ind-btn").forEach(btn => {
@@ -1070,11 +768,8 @@
         const tvSym = "FX:" + currentSymbol.replace("/", "");
         const tvInt = currentTimeframe === "1M" ? "1" : currentTimeframe === "5M" ? "5" : currentTimeframe === "1H" ? "60" : "15";
         let studies = ["BB@tv-basicstudies", "MAExp@tv-basicstudies"];
-        if (currentStrategy === "2" || currentStrategy === "3" || currentStrategy === "4") {
-          studies = ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
-        } else if (currentStrategy === "5") {
-          studies = ["Stochastic@tv-basicstudies", "MAExp@tv-basicstudies"];
-        }
+        if (currentStrategy === "3") studies = ["BB@tv-basicstudies", "RSI@tv-basicstudies"];
+        else if (currentStrategy === "5") studies = ["Stochastic@tv-basicstudies", "MAExp@tv-basicstudies"];
         new TradingView.widget({
           autosize: true,
           symbol: tvSym,
@@ -1100,7 +795,7 @@
         const ss = String(gaza.getSeconds()).padStart(2, "0");
         document.getElementById("gazaClock").textContent = `توقيت غزة (UTC+2): ${hh}:${mm}:${ss}`;
 
-        const utcH = now.getUTCHours();
+        const utcH = new Date(utcMs).getUTCHours();
         document.getElementById("sess-sydney").classList.toggle("open", utcH >= 22 || utcH < 7);
         document.getElementById("sess-tokyo").classList.toggle("open", utcH >= 0 && utcH < 9);
         document.getElementById("sess-london").classList.toggle("open", utcH >= 7 && utcH < 16);
@@ -1123,7 +818,7 @@
         }
         const fhSym = "OANDA:" + symbol.replace("/", "_");
         try {
-          finnhubSocket = new WebSocket(`wss://ws.finnhub.io?token=${encodeURIComponent(finnhubKey)}`);
+          finnhubSocket = new WebSocket(`wss://ws.finnhub.io?token=${finnhubKey}`);
           finnhubSocket.onopen = () => {
             finnhubSocket.send(JSON.stringify({ type: "subscribe", symbol: fhSym }));
           };
@@ -1142,9 +837,7 @@
 
       function playAlertBeep() {
         try {
-          const AudioCtx = window.AudioContext || window.webkitAudioContext;
-          if (!AudioCtx) return;
-          const ctx = new AudioCtx();
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = "sine";
@@ -1163,12 +856,10 @@
         signalBox.className = "signal-box";
         signalBox.textContent = "⏳ جارٍ التحليل...";
         signalReason.textContent = "يتم جلب أحدث الشموع وحساب المؤشرات...";
-        renderAgentsReport(null);
 
         try {
-          const url = `/api/analyze?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentQueryParams()}`;
+          const url = `/api/analyze?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
           const data = await resp.json();
 
           if (!data.ok) {
@@ -1198,7 +889,6 @@
             signalBox.textContent = "⏸️ انتظار (WAIT)";
           }
           signalReason.textContent = a.reason;
-          renderAgentsReport(a.agents);
 
           document.getElementById("lvlBbUp").textContent = a.bb_upper ?? "--";
           document.getElementById("lvlBbLow").textContent = a.bb_lower ?? "--";
@@ -1206,7 +896,7 @@
 
           const fibList = document.getElementById("fibLevelsList");
           fibList.innerHTML = Object.entries(a.fib || {})
-            .map(([k, v]) => `<div class="level-row"><span>Fib ${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`)
+            .map(([k, v]) => `<div class="level-row"><span>Fib ${k}</span><span>${v}</span></div>`)
             .join("");
 
           drawChart();
@@ -1220,8 +910,6 @@
         if (!lastChartData || !lastChartData.candles || toggles.tv) return;
         const canvas = document.getElementById("candleCanvas");
         const rect = canvas.parentElement.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
-
         canvas.width = rect.width;
         canvas.height = rect.height;
         const ctx = canvas.getContext("2d");
@@ -1241,8 +929,8 @@
 
         let minP = Infinity, maxP = -Infinity;
         candles.forEach(c => {
-          minP = Math.min(minP, c.low, c.bb_lower ?? c.low, c.ema200 ?? c.low);
-          maxP = Math.max(maxP, c.high, c.bb_upper ?? c.high, c.ema200 ?? c.high);
+          minP = Math.min(minP, c.low, c.bb_lower || c.low, c.ema200 || c.low);
+          maxP = Math.max(maxP, c.high, c.bb_upper || c.high, c.ema200 || c.high);
         });
         const range = Math.max(maxP - minP, 1e-6);
         const yOf = (p) => padT + ((maxP - p) / range) * plotH;
@@ -1342,98 +1030,47 @@
       window.addEventListener("resize", drawChart);
 
       async function runManualScan() {
-        if (isManualScanning) return;
-        isManualScanning = true;
-        const scanBtnEl = document.getElementById("scanBtn");
         const box = document.getElementById("scanResults");
-        scanBtnEl.disabled = true;
-        scanBtnEl.textContent = "⏳ جارٍ المسح...";
-        const modeTxt = currentStrategy === "0" ? "الـ 5 استراتيجيات معاً" : `الاستراتيجية ${currentStrategy}`;
-        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ فحص 22 زوجاً على فريم ${escapeHtml(currentTimeframe)} (${escapeHtml(modeTxt)})...</div>`;
-
-        const controller = new AbortController();
-        const timerId = setTimeout(() => controller.abort(), 35000);
-
+        box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح 22/22 زوجاً (${currentTimeframe})...</div>`;
         try {
-          const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentQueryParams()}`;
-          const resp = await fetch(url, { signal: controller.signal });
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const resp = await fetch(url);
           const data = await resp.json();
           renderScanResults(data, false);
-        } catch (err) {
-          const msg = err && err.name === "AbortError"
-            ? "⏱️ استغرق فحص الـ 22 زوجاً وقتاً أطول من المعتاد — أعد المحاولة الآن."
-            : "⚠️ تعذر إتمام المسح حالياً — تحقق من حالة السيرفر وأعد المحاولة.";
-          box.innerHTML = `<div style="color:var(--red);text-align:center;">${escapeHtml(msg)}</div>`;
-        } finally {
-          clearTimeout(timerId);
-          isManualScanning = false;
-          scanBtnEl.disabled = false;
-          scanBtnEl.textContent = "🔍 مسح السوق (22 زوجاً)";
+        } catch (_) {
+          box.innerHTML = `<div style="color:var(--red);text-align:center;">⚠️ تعذر إتمام المسح حالياً.</div>`;
         }
       }
 
       function renderScanResults(data, isAuto = false) {
         const box = document.getElementById("scanResults");
-        if (!data || !data.ok) {
-          box.innerHTML = `<div style="color:var(--red);text-align:center;">${escapeHtml((data && data.error) || "خطأ في المسح")}</div>`;
+        if (!data.ok) {
+          box.innerHTML = `<div style="color:var(--red);text-align:center;">${data.error || "خطأ في المسح"}</div>`;
           return;
         }
         const nowTime = new Date().toLocaleTimeString("en-GB", { hour12: false });
         const modeBadge = isAuto ? `رادار تلقائي — آخر فحص: <b>${nowTime}</b>` : `فحص يدوي — <b>${nowTime}</b>`;
-        let html = `<div style="color:var(--text-muted);margin-bottom:8px;line-height:1.5;">${modeBadge}<br>تم فحص <b>${Number(data.scanned) || 0}/${Number(data.total) || 22}</b> زوجاً</div>`;
-
+        let html = `<div style="color:var(--text-muted);margin-bottom:8px;line-height:1.5;">${modeBadge}<br>تم فحص <b>${data.scanned}/${data.total}</b> زوجاً</div>`;
         if (data.confirmed && data.confirmed.length > 0) {
-          html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن (اضغط لنسخ الزوج والتحويل):</div>`;
+          html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن:</div>`;
           data.confirmed.forEach(c => {
-            const confCount = Number(c.confluence) || 1;
-            const stratBadge = c.strategy_label
-              ? `<span class="strat-tag ${confCount > 1 ? "confluence" : ""}">${confCount > 1 ? "🔥 تأكيد مزدوج: " : "📌 "}${escapeHtml(c.strategy_label)}</span>`
-              : "";
-            let subInfo = "";
-            if (c.court) {
-              subInfo += `<div>⚖️ ${renderVerdictBadge(c.court.verdict)} ${escapeHtml(c.court.judge_note || "")}</div>`;
-            }
-            if (c.mtf) {
-              subInfo += `<div>${escapeHtml(c.mtf.summary || "")}</div>`;
-            }
-            html += `<div class="scan-item" data-sym="${escapeHtml(c.symbol)}" title="اضغط لنسخ الزوج وتحويل الشارت عليه">
-              <div class="scan-item-top">
-                <span><b>${escapeHtml(c.symbol)}</b> (${c.signal === "CALL" ? "🟢 صعود" : "🔴 هبوط"})</span>
-                <span style="color:var(--gold)">ثقة ${Number(c.confidence) || 0}%</span>
-              </div>
-              <div>${stratBadge}</div>
-              ${subInfo ? `<div class="scan-item-sub">${subInfo}</div>` : ""}
+            html += `<div class="scan-item" data-sym="${c.symbol}">
+              <span><b>${c.symbol}</b> (${c.signal === "CALL" ? "🟢 صعود" : "🔴 هبوط"})</span>
+              <span style="color:var(--gold)">ثقة ${c.confidence}%</span>
             </div>`;
           });
         } else {
-          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه الشمعة ضمن الـ 22 زوجاً.</div>`;
+          html += `<div style="color:var(--text-muted);text-align:center;">لا توجد إشارة مؤكدة في هذه الشمعة.</div>`;
         }
-
-        if (data.killed_by_corr && data.killed_by_corr.length > 0) {
-          html += `<div style="color:#f87171;font-size:11px;margin-top:8px;border-top:1px dashed var(--border);padding-top:6px;">
-            <b>🔗 مستبعدة بواسطة صائد الارتباطات (${data.killed_by_corr.length}):</b><br>
-            ${data.killed_by_corr.map(k => `• ${escapeHtml(k.symbol)} (${escapeHtml(k.signal)})`).join(" | ")}
-          </div>`;
-        }
-
-        if (Array.isArray(data.pairs_summary) && data.pairs_summary.length > 0) {
-          html += `<div style="color:var(--text-muted);font-size:11px;margin-top:8px;">حالة الأزواج المفحوصة (${data.pairs_summary.length}):</div>`;
-          html += `<div class="all-pairs-grid">`;
-          data.pairs_summary.forEach(p => {
-            const tag = p.signal === "CALL" ? "🟢 CALL" : p.signal === "PUT" ? "🔴 PUT" : "WAIT";
-            html += `<div class="mini-pair-chip" data-sym="${escapeHtml(p.symbol)}" title="${escapeHtml(p.reason || "")}">
-              <span>${escapeHtml(p.symbol)}</span>
-              <span>${escapeHtml(tag)}</span>
-            </div>`;
-          });
-          html += `</div>`;
-        }
-
         box.innerHTML = html;
-        box.querySelectorAll(".scan-item, .mini-pair-chip").forEach(el => {
+        box.querySelectorAll(".scan-item").forEach(el => {
           el.addEventListener("click", () => {
-            selectAndCopyPair(el.dataset.sym);
+            currentSymbol = el.dataset.sym;
+            pairSelect.value = currentSymbol;
+            updateHeaderTitles();
+            connectFinnhub(currentSymbol);
+            if (toggles.tv) loadTradingView();
+            analyzeCurrentPair();
           });
         });
       }
@@ -1478,6 +1115,7 @@
       });
       updateCapitalCalc();
 
+      // وحدة الرادار التلقائي المحمي (6 ساعات)
       const apBtn = document.getElementById("ap-toggle-btn");
       const apStateText = document.getElementById("ap-state-text");
       const apTimerEl = document.getElementById("ap-timer");
@@ -1502,7 +1140,7 @@
         apToastEl.innerHTML = html;
         apToastEl.style.display = "block";
         clearTimeout(apToastEl._t);
-        apToastEl._t = setTimeout(() => { apToastEl.style.display = "none"; }, 8000);
+        apToastEl._t = setTimeout(() => { apToastEl.style.display = "none"; }, 12000);
       }
 
       function renderApUI() {
@@ -1510,8 +1148,8 @@
           apBtn.classList.add("active");
           apBtn.textContent = "🟢 الرادار التلقائي: مفعّل";
           apStateText.textContent = lastAutoScanStamp
-            ? `آخر فحص: ${lastAutoScanStamp}`
-            : "يفحص السوق تلقائياً عند إغلاق كل شمعة";
+            ? `آخر فحص: ${lastAutoScanStamp} (22/22)`
+            : "يفحص 22/22 زوجاً عند إغلاق كل شمعة";
           apTimerEl.textContent = `متبقي: ${formatApTime(remainingSec)}`;
         } else {
           apBtn.classList.remove("active");
@@ -1534,9 +1172,9 @@
         if (!isAutoActive || isAutoScanning) return;
         isAutoScanning = true;
         document.getElementById("scanResults").innerHTML =
-          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${escapeHtml(currentTimeframe)})...</div>`;
+          `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe} — 22/22)...</div>`;
         try {
-          const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentQueryParams()}`;
+          const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error("Network error");
           const data = await resp.json();
@@ -1558,15 +1196,12 @@
             pairSelect.value = currentSymbol;
             updateHeaderTitles();
             connectFinnhub(currentSymbol);
-            if (toggles.tv) loadTradingView();
             analyzeCurrentPair(true);
 
-            const items = data.confirmed.map(c => {
-              const vTag = c.court ? ` [${escapeHtml(c.court.verdict)}]` : "";
-              const sTag = c.strategy_label ? ` (${escapeHtml(c.strategy_label)})` : "";
-              return `<div>${c.signal === "CALL" ? "🟢" : "🔴"} <b>${escapeHtml(c.symbol)}</b>${sTag}${vTag}</div>`;
-            }).join("");
-            showApToast(`<b>🎯 فرص مؤكدة الآن (${escapeHtml(currentTimeframe)}):</b><br>${items}`, "#10b981");
+            const items = data.confirmed.map(c =>
+              `<div>${c.signal === "CALL" ? "🟢" : "🔴"} <b>${c.symbol}</b> (${c.signal}) — ثقة ${c.confidence}%</div>`
+            ).join("");
+            showApToast(`<b>🎯 فرص مؤكدة الآن (${currentTimeframe}):</b><br>${items}`, "#10b981");
           }
         } catch (_) {
           networkFailCount += 1;
@@ -1626,7 +1261,7 @@
               networkFailCount = 0;
               renderApUI();
               startApLoop();
-              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات.", "#10b981");
+              showApToast("✅ تم تفعيل الرادار التلقائي لمدة 6 ساعات (يفحص 22/22 زوجاً تلقائياً عند إغلاق كل شمعة).", "#10b981");
             }
           } catch (_) {
             showApToast("⚠️ تعذر الاتصال بالسيرفر لتفعيل الرادار.", "#ef4444");
