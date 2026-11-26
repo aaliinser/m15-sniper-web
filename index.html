@@ -205,6 +205,8 @@
     .btn-green:hover:not(:disabled) { filter: brightness(1.08); }
     .btn-red { background: var(--red); color: #fff; }
     .btn-red:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-blue { background: var(--blue); color: #fff; }
+    .btn-blue:hover:not(:disabled) { filter: brightness(1.08); }
 
     .form-group { margin-bottom: 10px; }
     .form-group label {
@@ -406,7 +408,7 @@
 
     .scan-item:hover { border-color: var(--gold); }
 
-    /* Capital & Session Discipline Styles */
+    /* Capital, Compounding & Session Discipline Styles */
     .session-banner {
       border-radius: 10px;
       padding: 12px;
@@ -467,10 +469,31 @@
       color: #052e16;
     }
 
+    .compound-info-box {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.7;
+      color: #d1fae5;
+    }
+
+    .compound-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px dashed rgba(16, 185, 129, 0.2);
+      padding: 3px 0;
+    }
+
+    .compound-info-row:last-child { border-bottom: none; }
+
     .martingale-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      margin-top: 8px;
       font-size: 11.5px;
       background: var(--bg-input);
       border-radius: 9px;
@@ -764,14 +787,14 @@
         </div>
       </div>
 
-      <!-- TAB 2: CAPITAL & SESSION DISCIPLINE -->
+      <!-- TAB 2: CAPITAL, COMPOUNDING & SESSION DISCIPLINE -->
       <div id="tab-capital" class="tab-content">
         <div id="sessionBanner" class="session-banner"></div>
 
         <div class="session-progress-bar">
           <div>
-            <div style="font-size:12px;font-weight:800;color:#fff;">🎯 هدف الجلسة (3 صفقات رابحة)</div>
-            <div style="font-size:11px;color:var(--text-muted);" id="sessionSubText">الخطوة الحالية: الدخول الأساسي</div>
+            <div style="font-size:12px;font-weight:800;color:#fff;">🎯 هدف الجلسة (3 صفقات رابحة) — يوم <span id="dayCounterText">1</span></div>
+            <div style="font-size:11px;color:var(--text-muted);" id="sessionSubText">النظام: ربح تراكمي تلقائي (1%)</div>
           </div>
           <div class="session-dots">
             <div class="s-dot" id="sDot1">1</div>
@@ -780,10 +803,18 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label>نظام إدارة رأس المال</label>
+          <select id="capMode">
+            <option value="compound" selected>📈 الربح التراكمي التلقائي (نسبة % من الرصيد — بدون تدبيل)</option>
+            <option value="fixed">🎯 مبلغ دخول ثابت + جدول التدبيل</option>
+          </select>
+        </div>
+
         <div class="form-row-2">
           <div class="form-group">
-            <label>رأس المال الأصلي ($)</label>
-            <input type="number" id="capStartBalance" value="200" min="1" step="1" />
+            <label>رصيد بداية الجلسة ($)</label>
+            <input type="number" id="capStartBalance" value="200" min="1" step="0.01" />
           </div>
           <div class="form-group">
             <label>نسبة العائد في Quotex (%)</label>
@@ -791,13 +822,26 @@
           </div>
         </div>
 
-        <div class="form-row-2">
+        <!-- Compound Mode Inputs -->
+        <div id="compoundInputsRow" class="form-row-2">
+          <div class="form-group">
+            <label>نسبة المخاطرة لكل صفقة (%)</label>
+            <input type="number" id="capRiskPct" value="1" min="0.5" max="10" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>رأس المال الأصلي الأولي ($)</label>
+            <input type="number" id="capOriginBalance" value="200" min="1" step="1" />
+          </div>
+        </div>
+
+        <!-- Fixed + Martingale Mode Inputs -->
+        <div id="fixedInputsRow" class="form-row-2" style="display:none;">
           <div class="form-group">
             <label>مبلغ الدخول الأساسي ($)</label>
             <input type="number" id="capBaseStake" value="10" min="1" step="0.5" />
           </div>
           <div class="form-group">
-            <label>نوع التدبيل المعتمد للجلسة</label>
+            <label>نوع التدبيل المعتمد</label>
             <select id="capRecoveryMode">
               <option value="profit" selected>تعويض الخسارة + ربح</option>
               <option value="breakeven">تعويض الخسارة فقط</option>
@@ -807,23 +851,23 @@
 
         <div class="stat-grid">
           <div class="stat-box">
-            <div class="stat-label">الرصيد الحالي المتبقي</div>
+            <div class="stat-label">الرصيد الحالي الآن</div>
             <div class="stat-num" id="liveBalanceVal" style="color:#38bdf8">$200.00</div>
           </div>
           <div class="stat-box">
-            <div class="stat-label">الزيادة / النقص من رأس المال</div>
+            <div class="stat-label">صافي ربح/خسارة الجلسة</div>
             <div class="stat-num" id="balanceDiffVal">$0.00</div>
           </div>
         </div>
 
         <div class="stat-grid">
           <div class="stat-box">
-            <div class="stat-label">مبلغ الصفقة الحالية الآن</div>
-            <div class="stat-num" id="currentStepStake" style="color:var(--gold)">$10.00</div>
+            <div class="stat-label">مبلغ الصفقة الآن <button class="mini-copy" id="copyActiveStakeBtn">نسخ</button></div>
+            <div class="stat-num" id="currentStepStake" style="color:var(--gold)">$2.00</div>
           </div>
           <div class="stat-box">
             <div class="stat-label">الربح الصافي المتوقع الآن</div>
-            <div class="stat-num" id="currentStepProfit" style="color:var(--green)">+$9.00</div>
+            <div class="stat-num" id="currentStepProfit" style="color:var(--green)">+$1.80</div>
           </div>
         </div>
 
@@ -832,19 +876,38 @@
           <button class="btn btn-red" id="addLossBtn">❌ تسجيل خسارة</button>
         </div>
 
-        <div style="font-size:11.5px;color:var(--gold);font-weight:700;margin-top:4px;">
-          📊 جدول التدبيل التلقائي (اضغط نسخ للمبلغ المطلوب):
+        <!-- Compound Panel -->
+        <div id="compoundPanel" class="compound-info-box">
+          <div class="compound-info-row">
+            <span>📈 إجمالي النمو منذ البداية:</span>
+            <b id="totalGrowthText">$0.00 (0.0%)</b>
+          </div>
+          <div class="compound-info-row">
+            <span>🎯 هدف ربح اليوم (3 صفقات):</span>
+            <b id="todayTargetText">+$5.40</b>
+          </div>
+          <div class="compound-info-row">
+            <span>⏭️ مبلغ دخول اليوم التالي (التراكمي):</span>
+            <b id="nextDayStakeText" style="color:var(--gold);">$2.05</b>
+          </div>
         </div>
-        <table class="martingale-table">
-          <thead>
-            <tr>
-              <th>الخطوة</th>
-              <th>تعويض + ربح</th>
-              <th>تعويض فقط</th>
-            </tr>
-          </thead>
-          <tbody id="martingaleBody"></tbody>
-        </table>
+
+        <!-- Martingale Panel (shown in Fixed mode) -->
+        <div id="martingalePanel" style="display:none;">
+          <div style="font-size:11.5px;color:var(--gold);font-weight:700;margin-top:4px;">
+            📊 جدول التدبيل التلقائي (اضغط نسخ للمبلغ المطلوب):
+          </div>
+          <table class="martingale-table">
+            <thead>
+              <tr>
+                <th>الخطوة</th>
+                <th>تعويض + ربح</th>
+                <th>تعويض فقط</th>
+              </tr>
+            </thead>
+            <tbody id="martingaleBody"></tbody>
+          </table>
+        </div>
 
         <div class="stat-grid" style="margin-top:10px;">
           <div class="stat-box">
@@ -857,7 +920,8 @@
           </div>
         </div>
 
-        <button class="btn btn-dark" id="resetSessionBtn" style="width:100%;margin-top:10px;">🔄 بدء جلسة جديدة (تصفير العداد)</button>
+        <button class="btn btn-blue" id="nextDaySessionBtn" style="width:100%;margin-top:10px;">📅 بدء جلسة اليوم التالي (ترحيل الرصيد للتراكمي)</button>
+        <button class="btn btn-dark" id="resetSessionBtn" style="width:100%;margin-top:6px;font-size:12px;">🗑️ تصفير كامل والعودة لرأس المال الأصلي</button>
       </div>
 
       <!-- TAB 3: MARKET -->
@@ -1346,23 +1410,72 @@
       document.getElementById("scanBtn").addEventListener("click", runManualScan);
 
       // ==========================================
-      // CAPITAL, MARTINGALE & 3-TRADE SESSION LOCK
+      // CAPITAL, COMPOUNDING, MARTINGALE & 3-TRADE SESSION LOCK
       // ==========================================
+      const STORAGE_KEY = "m15_sniper_capital_v2";
       const MAX_SESSION_WINS = 3;
       const MAX_CONSEC_LOSSES = 3;
 
+      let dayNumber = 1;
       let sessionWins = 0;
       let sessionLosses = 0;
       let consecLosses = 0;
       let netProfit = 0;
       let sessionLocked = false;
+      let lockType = "";
+      let lockMessage = "";
       let martingaleSteps = [];
+
+      function saveCapitalState() {
+        try {
+          const payload = {
+            mode: document.getElementById("capMode").value,
+            startBal: parseFloat(document.getElementById("capStartBalance").value) || 200,
+            originBal: parseFloat(document.getElementById("capOriginBalance").value) || 200,
+            payout: parseFloat(document.getElementById("capPayout").value) || 90,
+            riskPct: parseFloat(document.getElementById("capRiskPct").value) || 1,
+            baseStake: parseFloat(document.getElementById("capBaseStake").value) || 10,
+            recoveryMode: document.getElementById("capRecoveryMode").value,
+            dayNumber,
+            sessionWins,
+            sessionLosses,
+            consecLosses,
+            netProfit,
+            sessionLocked,
+            lockType,
+            lockMessage
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        } catch (_) {}
+      }
+
+      function loadCapitalState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const s = JSON.parse(raw);
+          if (s.mode) document.getElementById("capMode").value = s.mode;
+          if (s.startBal) document.getElementById("capStartBalance").value = Number(s.startBal).toFixed(2);
+          if (s.originBal) document.getElementById("capOriginBalance").value = Number(s.originBal).toFixed(2);
+          if (s.payout) document.getElementById("capPayout").value = s.payout;
+          if (s.riskPct) document.getElementById("capRiskPct").value = s.riskPct;
+          if (s.baseStake) document.getElementById("capBaseStake").value = s.baseStake;
+          if (s.recoveryMode) document.getElementById("capRecoveryMode").value = s.recoveryMode;
+          dayNumber = s.dayNumber || 1;
+          sessionWins = s.sessionWins || 0;
+          sessionLosses = s.sessionLosses || 0;
+          consecLosses = s.consecLosses || 0;
+          netProfit = Number(s.netProfit) || 0;
+          sessionLocked = Boolean(s.sessionLocked);
+          lockType = s.lockType || "";
+          lockMessage = s.lockMessage || "";
+        } catch (_) {}
+      }
 
       function computeMartingaleSteps(baseStake, payoutPct) {
         const rate = Math.max(0.1, payoutPct / 100);
         const targetProfit = baseStake * rate;
         const steps = [];
-
         let cumLossProfit = 0;
         let cumLossBreak = 0;
 
@@ -1388,20 +1501,34 @@
       }
 
       function getCurrentStepStake() {
-        const mode = document.getElementById("capRecoveryMode").value;
+        const mode = document.getElementById("capMode").value;
+        if (mode === "compound") {
+          const startBal = Math.max(1, parseFloat(document.getElementById("capStartBalance").value) || 200);
+          const riskPct = Math.max(0.1, parseFloat(document.getElementById("capRiskPct").value) || 1);
+          return Number(Math.max(1, startBal * (riskPct / 100)).toFixed(2));
+        }
+        const recMode = document.getElementById("capRecoveryMode").value;
         const idx = Math.min(consecLosses, martingaleSteps.length - 1);
         const row = martingaleSteps[idx] || { stakeProfit: 10, stakeBreak: 10 };
-        return mode === "breakeven" ? row.stakeBreak : row.stakeProfit;
+        return recMode === "breakeven" ? row.stakeBreak : row.stakeProfit;
       }
 
       function renderCapitalUI() {
+        const mode = document.getElementById("capMode").value;
         const startBal = Math.max(1, parseFloat(document.getElementById("capStartBalance").value) || 200);
-        const baseStake = Math.max(1, parseFloat(document.getElementById("capBaseStake").value) || 10);
+        const originBal = Math.max(1, parseFloat(document.getElementById("capOriginBalance").value) || 200);
         const payoutPct = Math.min(98, Math.max(50, parseFloat(document.getElementById("capPayout").value) || 90));
+        const riskPct = Math.max(0.1, parseFloat(document.getElementById("capRiskPct").value) || 1);
+        const baseStake = Math.max(1, parseFloat(document.getElementById("capBaseStake").value) || 10);
+
+        document.getElementById("compoundInputsRow").style.display = mode === "compound" ? "grid" : "none";
+        document.getElementById("compoundPanel").style.display = mode === "compound" ? "block" : "none";
+        document.getElementById("fixedInputsRow").style.display = mode === "fixed" ? "grid" : "none";
+        document.getElementById("martingalePanel").style.display = mode === "fixed" ? "block" : "none";
 
         martingaleSteps = computeMartingaleSteps(baseStake, payoutPct);
 
-        const currentBal = startBal + netProfit;
+        const currentBal = Math.max(0, startBal + netProfit);
         const liveBalEl = document.getElementById("liveBalanceVal");
         const diffEl = document.getElementById("balanceDiffVal");
 
@@ -1416,6 +1543,7 @@
 
         document.getElementById("currentStepStake").textContent = `$${activeStake.toFixed(2)}`;
         document.getElementById("currentStepProfit").textContent = `+$${activeProfit.toFixed(2)}`;
+        document.getElementById("dayCounterText").textContent = String(dayNumber);
 
         document.getElementById("sessionWL").textContent = `${sessionWins} / ${sessionLosses}`;
         document.getElementById("consecLossVal").textContent = `${consecLosses} / ${MAX_CONSEC_LOSSES}`;
@@ -1425,6 +1553,8 @@
           subText.textContent = "🏆 الجلسة مكتملة — اذهب للنوم لليوم التالي";
         } else if (sessionLocked) {
           subText.textContent = "🛑 تم إيقاف الجلسة لحماية رأس المال";
+        } else if (mode === "compound") {
+          subText.textContent = `📈 ربح تراكمي تلقائي (${riskPct}% من $${startBal.toFixed(2)})`;
         } else if (consecLosses === 0) {
           subText.textContent = "الخطوة الحالية: الدخول الأساسي";
         } else {
@@ -1437,37 +1567,68 @@
           dot.textContent = sessionWins >= i ? "✓" : String(i);
         }
 
-        const tbody = document.getElementById("martingaleBody");
-        tbody.innerHTML = martingaleSteps.map(row => {
-          const isAct = (!sessionLocked && row.step === consecLosses);
-          const overBal = row.stakeProfit > currentBal;
-          return `<tr class="${isAct ? "active-step" : ""} ${overBal ? "over-bal" : ""}">
-            <td><b>${row.label}</b></td>
-            <td>$${row.stakeProfit.toFixed(2)} <button class="mini-copy" data-val="${row.stakeProfit.toFixed(2)}">نسخ</button></td>
-            <td>$${row.stakeBreak.toFixed(2)} <button class="mini-copy" data-val="${row.stakeBreak.toFixed(2)}">نسخ</button></td>
-          </tr>`;
-        }).join("");
+        if (mode === "compound") {
+          const totalDiff = currentBal - originBal;
+          const totalPct = (totalDiff / originBal) * 100;
+          const growthEl = document.getElementById("totalGrowthText");
+          growthEl.textContent = `${totalDiff >= 0 ? "+" : "-"}$${Math.abs(totalDiff).toFixed(2)} (${totalPct >= 0 ? "+" : ""}${totalPct.toFixed(1)}%)`;
+          growthEl.style.color = totalDiff >= 0 ? "var(--green)" : "var(--red)";
 
-        tbody.querySelectorAll(".mini-copy").forEach(btn => {
-          btn.addEventListener("click", () => {
-            navigator.clipboard.writeText(btn.dataset.val).catch(() => {});
-            const old = btn.textContent;
-            btn.textContent = "✓";
-            setTimeout(() => { btn.textContent = old; }, 900);
+          const todayTarget = activeStake * (payoutPct / 100) * MAX_SESSION_WINS;
+          document.getElementById("todayTargetText").textContent = `+$${todayTarget.toFixed(2)}`;
+
+          const nextDayStake = Math.max(1, currentBal * (riskPct / 100));
+          document.getElementById("nextDayStakeText").textContent = `$${nextDayStake.toFixed(2)}`;
+        } else {
+          const tbody = document.getElementById("martingaleBody");
+          tbody.innerHTML = martingaleSteps.map(row => {
+            const isAct = (!sessionLocked && row.step === consecLosses);
+            const overBal = row.stakeProfit > currentBal;
+            return `<tr class="${isAct ? "active-step" : ""} ${overBal ? "over-bal" : ""}">
+              <td><b>${row.label}</b></td>
+              <td>$${row.stakeProfit.toFixed(2)} <button class="mini-copy" data-val="${row.stakeProfit.toFixed(2)}">نسخ</button></td>
+              <td>$${row.stakeBreak.toFixed(2)} <button class="mini-copy" data-val="${row.stakeBreak.toFixed(2)}">نسخ</button></td>
+            </tr>`;
+          }).join("");
+
+          tbody.querySelectorAll(".mini-copy").forEach(btn => {
+            btn.addEventListener("click", () => {
+              navigator.clipboard.writeText(btn.dataset.val).catch(() => {});
+              const old = btn.textContent;
+              btn.textContent = "✓";
+              setTimeout(() => { btn.textContent = old; }, 900);
+            });
           });
-        });
+        }
+
+        const banner = document.getElementById("sessionBanner");
+        if (sessionLocked && lockMessage) {
+          banner.className = "session-banner " + lockType;
+          banner.innerHTML = lockMessage;
+        } else {
+          banner.className = "session-banner";
+          banner.innerHTML = "";
+        }
 
         document.getElementById("addWinBtn").disabled = sessionLocked;
         document.getElementById("addLossBtn").disabled = sessionLocked;
+        saveCapitalState();
       }
 
       function lockSession(type, message) {
         sessionLocked = true;
-        const banner = document.getElementById("sessionBanner");
-        banner.className = "session-banner " + type;
-        banner.innerHTML = message;
+        lockType = type;
+        lockMessage = message;
         renderCapitalUI();
       }
+
+      document.getElementById("copyActiveStakeBtn").addEventListener("click", () => {
+        const val = getCurrentStepStake().toFixed(2);
+        navigator.clipboard.writeText(val).catch(() => {});
+        const btn = document.getElementById("copyActiveStakeBtn");
+        btn.textContent = "✓";
+        setTimeout(() => { btn.textContent = "نسخ"; }, 900);
+      });
 
       document.getElementById("addWinBtn").addEventListener("click", () => {
         if (sessionLocked) return;
@@ -1485,7 +1646,7 @@
           playAlertBeep();
           lockSession(
             "win",
-            `🏆 خلاص يعطيك العافية! حققت هدف الجلسة (3/3) بنجاح.<br>رصيدك أصبح <b>$${finalBal.toFixed(2)}</b> (بزيادة <b>+$${netProfit.toFixed(2)}</b>).<br>الآن أغلق المنصة واذهب للنوم لليوم التالي حتى لا تخسر ما ربحته!`
+            `🏆 خلاص يعطيك العافية! حققت هدف الجلسة (3/3) لليوم ${dayNumber}.<br>رصيدك أصبح <b>$${finalBal.toFixed(2)}</b> (ربح الجلسة <b>+$${netProfit.toFixed(2)}</b>).<br>الآن أغلق المنصة واذهب للنوم، وغداً اضغط «بدء جلسة اليوم التالي» ليتم ترحيل الرصيد التراكمي تلقائياً!`
           );
         } else {
           renderCapitalUI();
@@ -1512,22 +1673,41 @@
         }
       });
 
-      document.getElementById("resetSessionBtn").addEventListener("click", () => {
+      document.getElementById("nextDaySessionBtn").addEventListener("click", () => {
+        const startBal = Math.max(1, parseFloat(document.getElementById("capStartBalance").value) || 200);
+        const newBal = Math.max(1, startBal + netProfit);
+        document.getElementById("capStartBalance").value = newBal.toFixed(2);
+        dayNumber += 1;
         sessionWins = 0;
         sessionLosses = 0;
         consecLosses = 0;
         netProfit = 0;
         sessionLocked = false;
-        const banner = document.getElementById("sessionBanner");
-        banner.className = "session-banner";
-        banner.innerHTML = "";
+        lockType = "";
+        lockMessage = "";
         renderCapitalUI();
       });
 
-      ["capStartBalance", "capBaseStake", "capPayout", "capRecoveryMode"].forEach(id => {
+      document.getElementById("resetSessionBtn").addEventListener("click", () => {
+        const originBal = Math.max(1, parseFloat(document.getElementById("capOriginBalance").value) || 200);
+        document.getElementById("capStartBalance").value = originBal.toFixed(2);
+        dayNumber = 1;
+        sessionWins = 0;
+        sessionLosses = 0;
+        consecLosses = 0;
+        netProfit = 0;
+        sessionLocked = false;
+        lockType = "";
+        lockMessage = "";
+        renderCapitalUI();
+      });
+
+      ["capMode", "capStartBalance", "capOriginBalance", "capRiskPct", "capBaseStake", "capPayout", "capRecoveryMode"].forEach(id => {
         document.getElementById(id).addEventListener("input", renderCapitalUI);
         document.getElementById(id).addEventListener("change", renderCapitalUI);
       });
+
+      loadCapitalState();
       renderCapitalUI();
 
       // ==========================================
