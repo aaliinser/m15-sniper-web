@@ -109,14 +109,14 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 380px 1fr;
+      grid-template-columns: 400px 1fr;
       gap: 14px;
       padding: 14px;
-      max-width: 1650px;
+      max-width: 1680px;
       margin: 0 auto;
     }
 
-    @media (max-width: 1050px) {
+    @media (max-width: 1080px) {
       .layout { grid-template-columns: 1fr; }
     }
 
@@ -192,12 +192,19 @@
       color: #fff;
     }
 
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     .btn-gold { background: var(--gold); color: #090d16; }
-    .btn-gold:hover { background: var(--gold-hover); }
+    .btn-gold:hover:not(:disabled) { background: var(--gold-hover); }
     .btn-dark { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); }
-    .btn-dark:hover { border-color: var(--gold); }
+    .btn-dark:hover:not(:disabled) { border-color: var(--gold); }
     .btn-green { background: var(--green); color: #052e16; }
+    .btn-green:hover:not(:disabled) { filter: brightness(1.08); }
     .btn-red { background: var(--red); color: #fff; }
+    .btn-red:hover:not(:disabled) { filter: brightness(1.08); }
 
     .form-group { margin-bottom: 10px; }
     .form-group label {
@@ -207,18 +214,46 @@
       margin-bottom: 5px;
     }
 
+    .form-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
     select, input[type="number"] {
       width: 100%;
       background: var(--bg-input);
       border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 9px 10px;
+      padding: 8px 10px;
       border-radius: 8px;
       font-size: 13px;
       outline: none;
     }
 
     select:focus, input:focus { border-color: var(--gold); }
+
+    .agents-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .agent-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+
+    .agent-check input { accent-color: var(--gold); width: 14px; height: 14px; }
 
     .tf-grid {
       display: grid;
@@ -322,13 +357,38 @@
       line-height: 1.5;
     }
 
+    .agent-report {
+      margin-top: 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 9px 10px;
+      text-align: right;
+      font-size: 11.5px;
+      line-height: 1.6;
+      display: none;
+    }
+
+    .verdict-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-weight: 800;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+
+    .verdict-pill.ok { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid var(--green); }
+    .verdict-pill.warn { background: rgba(245,158,11,0.2); color: var(--gold); border: 1px solid var(--gold); }
+    .verdict-pill.bad { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid var(--red); }
+
     .scan-results {
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px;
       font-size: 12px;
-      max-height: 280px;
+      max-height: 260px;
       overflow-y: auto;
     }
 
@@ -345,6 +405,116 @@
     }
 
     .scan-item:hover { border-color: var(--gold); }
+
+    /* Capital & Session Discipline Styles */
+    .session-banner {
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      font-weight: 700;
+      display: none;
+    }
+
+    .session-banner.win {
+      display: block;
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid var(--green);
+      color: #a7f3d0;
+    }
+
+    .session-banner.loss {
+      display: block;
+      background: rgba(239, 68, 68, 0.16);
+      border: 1px solid var(--red);
+      color: #fecaca;
+    }
+
+    .session-progress-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+
+    .session-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .s-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-muted);
+    }
+
+    .s-dot.done {
+      background: var(--green);
+      border-color: var(--green);
+      color: #052e16;
+    }
+
+    .martingale-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 11.5px;
+      background: var(--bg-input);
+      border-radius: 9px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .martingale-table th {
+      background: #111827;
+      color: var(--text-muted);
+      padding: 7px 5px;
+      font-weight: 700;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .martingale-table td {
+      padding: 7px 5px;
+      text-align: center;
+      border-bottom: 1px solid #162033;
+      font-family: monospace;
+    }
+
+    .martingale-table tr.active-step {
+      background: rgba(245, 158, 11, 0.16);
+      outline: 1px solid var(--gold);
+    }
+
+    .martingale-table tr.over-bal td {
+      color: #f87171;
+    }
+
+    .mini-copy {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 10px;
+      cursor: pointer;
+      margin-right: 3px;
+    }
+
+    .mini-copy:hover { border-color: var(--gold); color: var(--gold); }
 
     .chart-header {
       display: flex;
@@ -388,7 +558,7 @@
     .chart-container {
       position: relative;
       width: 100%;
-      height: 540px;
+      height: 560px;
       background: #050811;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -411,19 +581,19 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 8px;
     }
 
     .stat-box {
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 10px;
+      padding: 9px;
       text-align: center;
     }
 
     .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
-    .stat-num { font-size: 16px; font-weight: 800; font-family: monospace; color: #fff; }
+    .stat-num { font-size: 15px; font-weight: 800; font-family: monospace; color: #fff; }
 
     .levels-list {
       font-size: 12px;
@@ -508,7 +678,7 @@
 
   <header class="topbar">
     <div class="brand">
-      🎯 M15 SNIPER PRO <span class="badge">QUANT TERMINAL</span>
+      🎯 M15 SNIPER PRO <span class="badge">v5.3 QUANT</span>
     </div>
     <div class="sessions-bar" id="sessionsBar">
       <div class="session-pill" id="sess-sydney"><span class="session-dot"></span> سيدني</div>
@@ -528,6 +698,7 @@
         <button class="tab-btn" data-tab="market">📊 قراءة السوق</button>
       </div>
 
+      <!-- TAB 1: SIGNALS -->
       <div id="tab-signals" class="tab-content active">
         <div class="active-pair-row">
           <span style="font-size:12px;color:var(--text-muted)">الزوج النشط:</span>
@@ -543,12 +714,19 @@
         <div class="form-group">
           <label for="strategySelect">الاستراتيجية المعتمدة</label>
           <select id="strategySelect">
-            <option value="1">1. M15 Sniper PRO (الأساسية)</option>
-            <option value="2">2. مع الاتجاه (Trend Following)</option>
-            <option value="3">3. سكالبينج سريع (Scalp Reversal)</option>
-            <option value="4">4. الارتداد والبرايس أكشن (S/R)</option>
+            <option value="1" selected>1. M15 Sniper (v5.3 الأصلية الصارمة)</option>
+            <option value="0">0. فحص شامل (جميع الاستراتيجيات الـ 5)</option>
+            <option value="2">2. V1_Original (درع الحماية)</option>
+            <option value="3">3. S3_Calm (درع الحماية)</option>
+            <option value="4">4. F4_ZScore (درع الحماية)</option>
             <option value="5">5. Stochastic Extreme Reversal (H1 / 9,5)</option>
           </select>
+        </div>
+
+        <div class="agents-box">
+          <label class="agent-check"><input type="checkbox" id="chkCourt" checked /> ⚖️ 1. محكمة الصفقة (Groq AI)</label>
+          <label class="agent-check"><input type="checkbox" id="chkMtf" checked /> 🛡️ 2. حارس فريم الساعة والأرقام النفسية</label>
+          <label class="agent-check"><input type="checkbox" id="chkCorr" checked /> 🚫 3. صائد الارتباطات (منع تداخل العملات)</label>
         </div>
 
         <div class="form-group">
@@ -578,6 +756,7 @@
           </div>
           <div class="signal-box" id="signalBox">بانتظار الفحص...</div>
           <div class="signal-reason" id="signalReason">اضغط على فحص الزوج الحالي أو مسح السوق للبدء.</div>
+          <div class="agent-report" id="agentReportBox"></div>
         </div>
 
         <div class="scan-results" id="scanResults">
@@ -585,49 +764,103 @@
         </div>
       </div>
 
+      <!-- TAB 2: CAPITAL & SESSION DISCIPLINE -->
       <div id="tab-capital" class="tab-content">
-        <div class="form-group">
-          <label>رأس المال الحالي ($)</label>
-          <input type="number" id="capBalance" value="100" min="1" />
+        <div id="sessionBanner" class="session-banner"></div>
+
+        <div class="session-progress-bar">
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#fff;">🎯 هدف الجلسة (3 صفقات رابحة)</div>
+            <div style="font-size:11px;color:var(--text-muted);" id="sessionSubText">الخطوة الحالية: الدخول الأساسي</div>
+          </div>
+          <div class="session-dots">
+            <div class="s-dot" id="sDot1">1</div>
+            <div class="s-dot" id="sDot2">2</div>
+            <div class="s-dot" id="sDot3">3</div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>نسبة المخاطرة الثابتة لكل صفقة (%) — بدون مضاعفة</label>
-          <input type="number" id="capRisk" value="2" min="0.5" max="10" step="0.5" />
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>رأس المال الأصلي ($)</label>
+            <input type="number" id="capStartBalance" value="200" min="1" step="1" />
+          </div>
+          <div class="form-group">
+            <label>نسبة العائد في Quotex (%)</label>
+            <input type="number" id="capPayout" value="90" min="50" max="98" step="1" />
+          </div>
         </div>
-        <div class="form-group">
-          <label>نسبة العائد في Quotex (%)</label>
-          <input type="number" id="capPayout" value="85" min="50" max="98" />
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>مبلغ الدخول الأساسي ($)</label>
+            <input type="number" id="capBaseStake" value="10" min="1" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label>نوع التدبيل المعتمد للجلسة</label>
+            <select id="capRecoveryMode">
+              <option value="profit" selected>تعويض الخسارة + ربح</option>
+              <option value="breakeven">تعويض الخسارة فقط</option>
+            </select>
+          </div>
         </div>
 
         <div class="stat-grid">
           <div class="stat-box">
-            <div class="stat-label">قيمة الصفقة الثابتة</div>
-            <div class="stat-num" id="calcStake" style="color:var(--gold)">$2.00</div>
+            <div class="stat-label">الرصيد الحالي المتبقي</div>
+            <div class="stat-num" id="liveBalanceVal" style="color:#38bdf8">$200.00</div>
           </div>
           <div class="stat-box">
-            <div class="stat-label">الربح المتوقع للصفقة</div>
-            <div class="stat-num" id="calcProfit" style="color:var(--green)">+$1.70</div>
+            <div class="stat-label">الزيادة / النقص من رأس المال</div>
+            <div class="stat-num" id="balanceDiffVal">$0.00</div>
           </div>
         </div>
 
-        <div class="action-grid" style="margin-top:12px;">
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-label">مبلغ الصفقة الحالية الآن</div>
+            <div class="stat-num" id="currentStepStake" style="color:var(--gold)">$10.00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">الربح الصافي المتوقع الآن</div>
+            <div class="stat-num" id="currentStepProfit" style="color:var(--green)">+$9.00</div>
+          </div>
+        </div>
+
+        <div class="action-grid" style="margin-top:10px;">
           <button class="btn btn-green" id="addWinBtn">✅ تسجيل ربح</button>
           <button class="btn btn-red" id="addLossBtn">❌ تسجيل خسارة</button>
         </div>
 
-        <div class="stat-grid">
+        <div style="font-size:11.5px;color:var(--gold);font-weight:700;margin-top:4px;">
+          📊 جدول التدبيل التلقائي (اضغط نسخ للمبلغ المطلوب):
+        </div>
+        <table class="martingale-table">
+          <thead>
+            <tr>
+              <th>الخطوة</th>
+              <th>تعويض + ربح</th>
+              <th>تعويض فقط</th>
+            </tr>
+          </thead>
+          <tbody id="martingaleBody"></tbody>
+        </table>
+
+        <div class="stat-grid" style="margin-top:10px;">
           <div class="stat-box">
-            <div class="stat-label">صفقات الجلسة (ربح / خسارة)</div>
+            <div class="stat-label">سجل الجلسة (ربح / خسارة)</div>
             <div class="stat-num" id="sessionWL">0 / 0</div>
           </div>
           <div class="stat-box">
-            <div class="stat-label">صافي ربح الجلسة</div>
-            <div class="stat-num" id="sessionNet">$0.00</div>
+            <div class="stat-label">خسائر متتالية حالياً</div>
+            <div class="stat-num" id="consecLossVal" style="color:#f87171">0 / 3</div>
           </div>
         </div>
-        <button class="btn btn-dark" id="resetSessionBtn" style="width:100%;margin-top:10px;">🔄 تصفير الجلسة</button>
+
+        <button class="btn btn-dark" id="resetSessionBtn" style="width:100%;margin-top:10px;">🔄 بدء جلسة جديدة (تصفير العداد)</button>
       </div>
 
+      <!-- TAB 3: MARKET -->
       <div id="tab-market" class="tab-content">
         <div style="font-size:12px;color:var(--gold);font-weight:700;margin-bottom:8px;">مستويات المؤشرات الحالية</div>
         <div class="levels-list" id="marketLevelsList">
@@ -741,6 +974,13 @@
         setTimeout(() => { btn.textContent = "📋 نسخ"; }, 1200);
       });
 
+      function getAgentParams() {
+        const c = document.getElementById("chkCourt").checked ? 1 : 0;
+        const m = document.getElementById("chkMtf").checked ? 1 : 0;
+        const r = document.getElementById("chkCorr").checked ? 1 : 0;
+        return `&agent_court=${c}&agent_mtf=${m}&agent_corr=${r}`;
+      }
+
       function updateHeaderTitles() {
         document.getElementById("activePairDisplay").textContent = currentSymbol;
         document.getElementById("chartTitle").textContent = `${currentSymbol} — ${currentTimeframe}`;
@@ -850,15 +1090,40 @@
         } catch (_) {}
       }
 
+      function renderAgentReport(agents) {
+        const box = document.getElementById("agentReportBox");
+        if (!agents || (!agents.court && !agents.mtf)) {
+          box.style.display = "none";
+          box.innerHTML = "";
+          return;
+        }
+        let html = "";
+        if (agents.court) {
+          const v = (agents.court.verdict || "HALF RISK").toUpperCase();
+          const cls = v.includes("APPROVED") ? "ok" : (v.includes("VETO") || v.includes("TRAP") ? "bad" : "warn");
+          html += `<div style="margin-bottom:6px;"><b>⚖️ محكمة الصفقة:</b> <span class="verdict-pill ${cls}">${v}</span></div>`;
+          if (agents.court.sniper) html += `<div style="color:#34d399;">🎯 <b>القناص:</b> ${agents.court.sniper}</div>`;
+          if (agents.court.trap_hunter) html += `<div style="color:#f87171;">🕵️ <b>صائد الفخوخ:</b> ${agents.court.trap_hunter}</div>`;
+          if (agents.court.judge_note) html += `<div style="color:#fbbf24;">👨‍⚖️ <b>القاضي:</b> ${agents.court.judge_note}</div>`;
+        }
+        if (agents.mtf) {
+          html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #1e293b;color:#cbd5e1;">🛡️ ${agents.mtf.summary}</div>`;
+        }
+        box.innerHTML = html;
+        box.style.display = "block";
+      }
+
       async function analyzeCurrentPair(silent = false) {
         const signalBox = document.getElementById("signalBox");
         const signalReason = document.getElementById("signalReason");
+        const agentBox = document.getElementById("agentReportBox");
         signalBox.className = "signal-box";
         signalBox.textContent = "⏳ جارٍ التحليل...";
         signalReason.textContent = "يتم جلب أحدث الشموع وحساب المؤشرات...";
+        agentBox.style.display = "none";
 
         try {
-          const url = `/api/analyze?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const url = `/api/analyze?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentParams()}`;
           const resp = await fetch(url);
           const data = await resp.json();
 
@@ -889,6 +1154,7 @@
             signalBox.textContent = "⏸️ انتظار (WAIT)";
           }
           signalReason.textContent = a.reason;
+          renderAgentReport(a.agents);
 
           document.getElementById("lvlBbUp").textContent = a.bb_upper ?? "--";
           document.getElementById("lvlBbLow").textContent = a.bb_lower ?? "--";
@@ -1033,7 +1299,7 @@
         const box = document.getElementById("scanResults");
         box.innerHTML = `<div style="color:var(--gold);text-align:center;">🔍 جارٍ مسح 22/22 زوجاً (${currentTimeframe})...</div>`;
         try {
-          const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const url = `/api/scan?mode=manual&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentParams()}`;
           const resp = await fetch(url);
           const data = await resp.json();
           renderScanResults(data, false);
@@ -1054,9 +1320,10 @@
         if (data.confirmed && data.confirmed.length > 0) {
           html += `<div style="color:var(--green);font-weight:700;margin-bottom:5px;">🎯 فرص مؤكدة الآن:</div>`;
           data.confirmed.forEach(c => {
+            const verdictBadge = c.court ? ` | ⚖️ ${c.court.verdict}` : "";
             html += `<div class="scan-item" data-sym="${c.symbol}">
               <span><b>${c.symbol}</b> (${c.signal === "CALL" ? "🟢 صعود" : "🔴 هبوط"})</span>
-              <span style="color:var(--gold)">ثقة ${c.confidence}%</span>
+              <span style="color:var(--gold)">ثقة ${c.confidence}%${verdictBadge}</span>
             </div>`;
           });
         } else {
@@ -1078,44 +1345,194 @@
       document.getElementById("analyzeBtn").addEventListener("click", () => analyzeCurrentPair(false));
       document.getElementById("scanBtn").addEventListener("click", runManualScan);
 
-      let wins = 0, losses = 0, netProfit = 0;
-      function updateCapitalCalc() {
-        const bal = parseFloat(document.getElementById("capBalance").value) || 0;
-        const risk = parseFloat(document.getElementById("capRisk").value) || 0;
-        const payout = parseFloat(document.getElementById("capPayout").value) || 85;
-        const stake = bal * (risk / 100);
-        const profit = stake * (payout / 100);
-        document.getElementById("calcStake").textContent = `$${stake.toFixed(2)}`;
-        document.getElementById("calcProfit").textContent = `+$${profit.toFixed(2)}`;
-      }
-      ["capBalance", "capRisk", "capPayout"].forEach(id => {
-        document.getElementById(id).addEventListener("input", updateCapitalCalc);
-      });
-      document.getElementById("addWinBtn").addEventListener("click", () => {
-        const bal = parseFloat(document.getElementById("capBalance").value) || 0;
-        const risk = parseFloat(document.getElementById("capRisk").value) || 0;
-        const payout = parseFloat(document.getElementById("capPayout").value) || 85;
-        const profit = (bal * (risk / 100)) * (payout / 100);
-        wins++; netProfit += profit;
-        document.getElementById("sessionWL").textContent = `${wins} / ${losses}`;
-        document.getElementById("sessionNet").textContent = `${netProfit >= 0 ? "+" : ""}$${netProfit.toFixed(2)}`;
-      });
-      document.getElementById("addLossBtn").addEventListener("click", () => {
-        const bal = parseFloat(document.getElementById("capBalance").value) || 0;
-        const risk = parseFloat(document.getElementById("capRisk").value) || 0;
-        const stake = bal * (risk / 100);
-        losses++; netProfit -= stake;
-        document.getElementById("sessionWL").textContent = `${wins} / ${losses}`;
-        document.getElementById("sessionNet").textContent = `${netProfit >= 0 ? "+" : ""}$${netProfit.toFixed(2)}`;
-      });
-      document.getElementById("resetSessionBtn").addEventListener("click", () => {
-        wins = 0; losses = 0; netProfit = 0;
-        document.getElementById("sessionWL").textContent = "0 / 0";
-        document.getElementById("sessionNet").textContent = "$0.00";
-      });
-      updateCapitalCalc();
+      // ==========================================
+      // CAPITAL, MARTINGALE & 3-TRADE SESSION LOCK
+      // ==========================================
+      const MAX_SESSION_WINS = 3;
+      const MAX_CONSEC_LOSSES = 3;
 
-      // وحدة الرادار التلقائي المحمي (6 ساعات)
+      let sessionWins = 0;
+      let sessionLosses = 0;
+      let consecLosses = 0;
+      let netProfit = 0;
+      let sessionLocked = false;
+      let martingaleSteps = [];
+
+      function computeMartingaleSteps(baseStake, payoutPct) {
+        const rate = Math.max(0.1, payoutPct / 100);
+        const targetProfit = baseStake * rate;
+        const steps = [];
+
+        let cumLossProfit = 0;
+        let cumLossBreak = 0;
+
+        for (let i = 0; i <= 3; i++) {
+          let stakeProfit, stakeBreak;
+          if (i === 0) {
+            stakeProfit = baseStake;
+            stakeBreak = baseStake;
+          } else {
+            stakeProfit = (cumLossProfit + targetProfit) / rate;
+            stakeBreak = cumLossBreak / rate;
+          }
+          steps.push({
+            step: i,
+            label: i === 0 ? "الأساسية" : `تدبيل ${i}`,
+            stakeProfit: Number(stakeProfit.toFixed(2)),
+            stakeBreak: Number(stakeBreak.toFixed(2))
+          });
+          cumLossProfit += stakeProfit;
+          cumLossBreak += stakeBreak;
+        }
+        return steps;
+      }
+
+      function getCurrentStepStake() {
+        const mode = document.getElementById("capRecoveryMode").value;
+        const idx = Math.min(consecLosses, martingaleSteps.length - 1);
+        const row = martingaleSteps[idx] || { stakeProfit: 10, stakeBreak: 10 };
+        return mode === "breakeven" ? row.stakeBreak : row.stakeProfit;
+      }
+
+      function renderCapitalUI() {
+        const startBal = Math.max(1, parseFloat(document.getElementById("capStartBalance").value) || 200);
+        const baseStake = Math.max(1, parseFloat(document.getElementById("capBaseStake").value) || 10);
+        const payoutPct = Math.min(98, Math.max(50, parseFloat(document.getElementById("capPayout").value) || 90));
+
+        martingaleSteps = computeMartingaleSteps(baseStake, payoutPct);
+
+        const currentBal = startBal + netProfit;
+        const liveBalEl = document.getElementById("liveBalanceVal");
+        const diffEl = document.getElementById("balanceDiffVal");
+
+        liveBalEl.textContent = `$${currentBal.toFixed(2)}`;
+        liveBalEl.style.color = currentBal >= startBal ? "#38bdf8" : "#f87171";
+
+        diffEl.textContent = `${netProfit >= 0 ? "+" : "-"}$${Math.abs(netProfit).toFixed(2)}`;
+        diffEl.style.color = netProfit > 0 ? "var(--green)" : (netProfit < 0 ? "var(--red)" : "#cbd5e1");
+
+        const activeStake = getCurrentStepStake();
+        const activeProfit = activeStake * (payoutPct / 100);
+
+        document.getElementById("currentStepStake").textContent = `$${activeStake.toFixed(2)}`;
+        document.getElementById("currentStepProfit").textContent = `+$${activeProfit.toFixed(2)}`;
+
+        document.getElementById("sessionWL").textContent = `${sessionWins} / ${sessionLosses}`;
+        document.getElementById("consecLossVal").textContent = `${consecLosses} / ${MAX_CONSEC_LOSSES}`;
+
+        const subText = document.getElementById("sessionSubText");
+        if (sessionLocked && sessionWins >= MAX_SESSION_WINS) {
+          subText.textContent = "🏆 الجلسة مكتملة — اذهب للنوم لليوم التالي";
+        } else if (sessionLocked) {
+          subText.textContent = "🛑 تم إيقاف الجلسة لحماية رأس المال";
+        } else if (consecLosses === 0) {
+          subText.textContent = "الخطوة الحالية: الدخول الأساسي";
+        } else {
+          subText.textContent = `⚠️ الخطوة الحالية: تدبيل ${consecLosses} (للتعويض)`;
+        }
+
+        for (let i = 1; i <= 3; i++) {
+          const dot = document.getElementById("sDot" + i);
+          dot.classList.toggle("done", sessionWins >= i);
+          dot.textContent = sessionWins >= i ? "✓" : String(i);
+        }
+
+        const tbody = document.getElementById("martingaleBody");
+        tbody.innerHTML = martingaleSteps.map(row => {
+          const isAct = (!sessionLocked && row.step === consecLosses);
+          const overBal = row.stakeProfit > currentBal;
+          return `<tr class="${isAct ? "active-step" : ""} ${overBal ? "over-bal" : ""}">
+            <td><b>${row.label}</b></td>
+            <td>$${row.stakeProfit.toFixed(2)} <button class="mini-copy" data-val="${row.stakeProfit.toFixed(2)}">نسخ</button></td>
+            <td>$${row.stakeBreak.toFixed(2)} <button class="mini-copy" data-val="${row.stakeBreak.toFixed(2)}">نسخ</button></td>
+          </tr>`;
+        }).join("");
+
+        tbody.querySelectorAll(".mini-copy").forEach(btn => {
+          btn.addEventListener("click", () => {
+            navigator.clipboard.writeText(btn.dataset.val).catch(() => {});
+            const old = btn.textContent;
+            btn.textContent = "✓";
+            setTimeout(() => { btn.textContent = old; }, 900);
+          });
+        });
+
+        document.getElementById("addWinBtn").disabled = sessionLocked;
+        document.getElementById("addLossBtn").disabled = sessionLocked;
+      }
+
+      function lockSession(type, message) {
+        sessionLocked = true;
+        const banner = document.getElementById("sessionBanner");
+        banner.className = "session-banner " + type;
+        banner.innerHTML = message;
+        renderCapitalUI();
+      }
+
+      document.getElementById("addWinBtn").addEventListener("click", () => {
+        if (sessionLocked) return;
+        const payoutPct = Math.min(98, Math.max(50, parseFloat(document.getElementById("capPayout").value) || 90));
+        const startBal = Math.max(1, parseFloat(document.getElementById("capStartBalance").value) || 200);
+        const stake = getCurrentStepStake();
+        const profit = stake * (payoutPct / 100);
+
+        netProfit += profit;
+        sessionWins += 1;
+        consecLosses = 0;
+
+        if (sessionWins >= MAX_SESSION_WINS) {
+          const finalBal = startBal + netProfit;
+          playAlertBeep();
+          lockSession(
+            "win",
+            `🏆 خلاص يعطيك العافية! حققت هدف الجلسة (3/3) بنجاح.<br>رصيدك أصبح <b>$${finalBal.toFixed(2)}</b> (بزيادة <b>+$${netProfit.toFixed(2)}</b>).<br>الآن أغلق المنصة واذهب للنوم لليوم التالي حتى لا تخسر ما ربحته!`
+          );
+        } else {
+          renderCapitalUI();
+        }
+      });
+
+      document.getElementById("addLossBtn").addEventListener("click", () => {
+        if (sessionLocked) return;
+        const startBal = Math.max(1, parseFloat(document.getElementById("capStartBalance").value) || 200);
+        const stake = getCurrentStepStake();
+
+        netProfit -= stake;
+        sessionLosses += 1;
+        consecLosses += 1;
+
+        const finalBal = startBal + netProfit;
+        if (consecLosses >= MAX_CONSEC_LOSSES || finalBal <= 0) {
+          lockSession(
+            "loss",
+            `🛑 توقف فوراً! وصلت إلى ${consecLosses} خسائر متتالية.<br>رصيدك الحالي <b>$${Math.max(0, finalBal).toFixed(2)}</b> (النقص <b>-$${Math.abs(netProfit).toFixed(2)}</b>).<br>أغلق المنصة الآن لحماية باقي رأس المال وعد غداً بذهن صافٍ.`
+          );
+        } else {
+          renderCapitalUI();
+        }
+      });
+
+      document.getElementById("resetSessionBtn").addEventListener("click", () => {
+        sessionWins = 0;
+        sessionLosses = 0;
+        consecLosses = 0;
+        netProfit = 0;
+        sessionLocked = false;
+        const banner = document.getElementById("sessionBanner");
+        banner.className = "session-banner";
+        banner.innerHTML = "";
+        renderCapitalUI();
+      });
+
+      ["capStartBalance", "capBaseStake", "capPayout", "capRecoveryMode"].forEach(id => {
+        document.getElementById(id).addEventListener("input", renderCapitalUI);
+        document.getElementById(id).addEventListener("change", renderCapitalUI);
+      });
+      renderCapitalUI();
+
+      // ==========================================
+      // AUTOPILOT RADAR (6 HOURS)
+      // ==========================================
       const apBtn = document.getElementById("ap-toggle-btn");
       const apStateText = document.getElementById("ap-state-text");
       const apTimerEl = document.getElementById("ap-timer");
@@ -1174,7 +1591,7 @@
         document.getElementById("scanResults").innerHTML =
           `<div style="color:var(--gold);text-align:center;">🔍 جارٍ الفحص التلقائي الآن (${currentTimeframe} — 22/22)...</div>`;
         try {
-          const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}`;
+          const url = `/api/scan?mode=auto&timeframe=${encodeURIComponent(currentTimeframe)}&strategy=${encodeURIComponent(currentStrategy)}${getAgentParams()}`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error("Network error");
           const data = await resp.json();
